@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState } from 'react'
 import { useTheme } from '@/components/ThemeProvider'
 
 interface LineItem {
@@ -11,20 +11,17 @@ interface LineItem {
   total: number
 }
 
-interface SavedLogo {
-  url: string
-  name: string
-  uploadedAt: number
+// Hardcoded company information
+const COMPANY = {
+  name: 'SUNNY STATE GLASS',
+  tagline: 'Bringing Sunshine Through Every Pane',
+  phone: '623-498-1939',
+  license: 'ROC#325171',
+  website: 'https://www.sunnystateglass.com/',
+  logoUrl: 'https://res.cloudinary.com/dqvolqe3u/image/upload/v1768354633/estimate-logos/hp0coccezzjk8utekfly.png',
 }
 
 interface QuoteInfo {
-  companyName: string
-  companyTagline: string
-  companyPhone: string
-  companyLicense: string
-  companyWebsite: string
-  companyLogoUrl: string
-
   projectName: string
   quoteNumber: string
   quoteDate: string
@@ -75,20 +72,10 @@ function getDefaultNotes(weeks: number): string {
   return DEFAULT_NOTES.replace('{weeks}', weeks.toString())
 }
 
-const SAVED_LOGOS_KEY = 'estimate-app-saved-logos'
-
 export default function HomePage() {
   const { theme, toggleTheme } = useTheme()
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [info, setInfo] = useState<QuoteInfo>({
-    companyName: 'SUNNY STATE GLASS',
-    companyTagline: 'Bringing Sunshine Through Every Pane',
-    companyPhone: '623-498-1939',
-    companyLicense: 'ROC#325171',
-    companyWebsite: 'https://www.sunnystateglass.com/',
-    companyLogoUrl: '',
-
     projectName: '',
     quoteNumber: '01',
     quoteDate: formatDate(new Date()),
@@ -110,118 +97,6 @@ export default function HomePage() {
   ])
 
   const [generating, setGenerating] = useState(false)
-  const [showCompanySettings, setShowCompanySettings] = useState(false)
-  const [uploading, setUploading] = useState(false)
-  const [dragOver, setDragOver] = useState(false)
-  const [savedLogos, setSavedLogos] = useState<SavedLogo[]>([])
-  const [showSavedLogos, setShowSavedLogos] = useState(false)
-
-  // Load saved logos and selected logo from localStorage on mount
-  useEffect(() => {
-    const saved = localStorage.getItem(SAVED_LOGOS_KEY)
-    if (saved) {
-      try {
-        setSavedLogos(JSON.parse(saved))
-      } catch (e) {
-        console.error('Failed to parse saved logos:', e)
-      }
-    }
-    // Restore last selected logo
-    const lastLogo = localStorage.getItem('selectedLogoUrl')
-    if (lastLogo) {
-      setInfo(prev => ({ ...prev, companyLogoUrl: lastLogo }))
-    }
-  }, [])
-
-  // Save logos to localStorage when they change
-  const saveLogosToStorage = (logos: SavedLogo[]) => {
-    localStorage.setItem(SAVED_LOGOS_KEY, JSON.stringify(logos))
-    setSavedLogos(logos)
-  }
-
-  const uploadLogo = async (file: File) => {
-    if (!file.type.startsWith('image/')) {
-      alert('Please upload an image file')
-      return
-    }
-
-    setUploading(true)
-    try {
-      const formData = new FormData()
-      formData.append('file', file)
-
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      })
-
-      if (!response.ok) {
-        throw new Error('Upload failed')
-      }
-
-      const data = await response.json()
-
-      // Set the logo URL and persist it
-      setInfo(prev => ({ ...prev, companyLogoUrl: data.url }))
-      localStorage.setItem('selectedLogoUrl', data.url)
-
-      // Save to recent logos
-      const newLogo: SavedLogo = {
-        url: data.url,
-        name: file.name,
-        uploadedAt: Date.now(),
-      }
-      const updatedLogos = [newLogo, ...savedLogos.filter(l => l.url !== data.url)].slice(0, 10)
-      saveLogosToStorage(updatedLogos)
-
-    } catch (error) {
-      console.error('Upload error:', error)
-      alert('Failed to upload logo. Make sure Cloudinary is configured.')
-    } finally {
-      setUploading(false)
-    }
-  }
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      uploadLogo(file)
-    }
-  }
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault()
-    setDragOver(false)
-    const file = e.dataTransfer.files?.[0]
-    if (file) {
-      uploadLogo(file)
-    }
-  }
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault()
-    setDragOver(true)
-  }
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault()
-    setDragOver(false)
-  }
-
-  const selectSavedLogo = (logo: SavedLogo) => {
-    setInfo(prev => ({ ...prev, companyLogoUrl: logo.url }))
-    localStorage.setItem('selectedLogoUrl', logo.url)
-    setShowSavedLogos(false)
-  }
-
-  const deleteSavedLogo = (url: string) => {
-    const updatedLogos = savedLogos.filter(l => l.url !== url)
-    saveLogosToStorage(updatedLogos)
-    if (info.companyLogoUrl === url) {
-      setInfo(prev => ({ ...prev, companyLogoUrl: '' }))
-      localStorage.removeItem('selectedLogoUrl')
-    }
-  }
 
   const addLineItem = () => {
     const newId = crypto.randomUUID()
@@ -292,41 +167,34 @@ export default function HomePage() {
 
       let y = 15
 
-      // Company Logo (if provided)
-      if (info.companyLogoUrl) {
-        try {
-          const img = new Image()
-          img.crossOrigin = 'anonymous'
-          await new Promise((resolve, reject) => {
-            img.onload = resolve
-            img.onerror = reject
-            img.src = info.companyLogoUrl
-          })
-          // Calculate dimensions to maintain aspect ratio
-          const maxWidth = 80
-          const maxHeight = 30
-          const imgRatio = img.width / img.height
-          let imgWidth = maxWidth
-          let imgHeight = imgWidth / imgRatio
+      // Company Logo
+      try {
+        const img = new Image()
+        img.crossOrigin = 'anonymous'
+        await new Promise((resolve, reject) => {
+          img.onload = resolve
+          img.onerror = reject
+          img.src = COMPANY.logoUrl
+        })
+        // Calculate dimensions to maintain aspect ratio
+        const maxWidth = 80
+        const maxHeight = 30
+        const imgRatio = img.width / img.height
+        let imgWidth = maxWidth
+        let imgHeight = imgWidth / imgRatio
 
-          // If height exceeds max, scale down based on height instead
-          if (imgHeight > maxHeight) {
-            imgHeight = maxHeight
-            imgWidth = imgHeight * imgRatio
-          }
-
-          doc.addImage(img, 'PNG', 14, y, imgWidth, imgHeight)
-        } catch (e) {
-          doc.setFontSize(16)
-          doc.setFont('helvetica', 'bold')
-          doc.setTextColor(...primaryBlue)
-          doc.text(info.companyName, 14, y + 10)
+        // If height exceeds max, scale down based on height instead
+        if (imgHeight > maxHeight) {
+          imgHeight = maxHeight
+          imgWidth = imgHeight * imgRatio
         }
-      } else {
+
+        doc.addImage(img, 'PNG', 14, y, imgWidth, imgHeight)
+      } catch (e) {
         doc.setFontSize(16)
         doc.setFont('helvetica', 'bold')
         doc.setTextColor(...primaryBlue)
-        doc.text(info.companyName, 14, y + 8)
+        doc.text(COMPANY.name, 14, y + 10)
       }
 
       // Project Name Quote title - lighter blue, clean font
@@ -340,7 +208,7 @@ export default function HomePage() {
       doc.setFontSize(10)
       doc.setFont('helvetica', 'italic')
       doc.setTextColor(100, 100, 100)
-      doc.text(info.companyTagline, 14, y)
+      doc.text(COMPANY.tagline, 14, y)
 
       y += 8
       doc.setDrawColor(200, 200, 200)
@@ -482,23 +350,23 @@ export default function HomePage() {
       doc.setFontSize(10)
       doc.setFont('helvetica', 'bold')
       doc.setTextColor(...blackText)
-      doc.text(info.companyName, 14, footerY)
+      doc.text(COMPANY.name, 14, footerY)
 
       doc.setFontSize(9)
       doc.setFont('helvetica', 'normal')
       doc.setTextColor(80, 80, 80)
-      doc.text(info.companyTagline, 14, footerY + 5)
+      doc.text(COMPANY.tagline, 14, footerY + 5)
 
       // Contact info in middle
       const centerX = pageWidth / 2
       doc.setFont('helvetica', 'normal')
       doc.setTextColor(...blackText)
-      doc.text(info.companyPhone, centerX, footerY, { align: 'center' })
-      doc.text(info.companyLicense, centerX, footerY + 5, { align: 'center' })
+      doc.text(COMPANY.phone, centerX, footerY, { align: 'center' })
+      doc.text(COMPANY.license, centerX, footerY + 5, { align: 'center' })
 
       // Website on right
       doc.setTextColor(...primaryBlue)
-      doc.textWithLink(info.companyWebsite.replace('https://', '').replace('http://', ''), pageWidth - 14, footerY, { url: info.companyWebsite, align: 'right' })
+      doc.textWithLink(COMPANY.website.replace('https://', '').replace('http://', ''), pageWidth - 14, footerY, { url: COMPANY.website, align: 'right' })
 
       const fileName = info.projectName
         ? `${info.projectName.replace(/\s+/g, '_')}_Quote_${info.quoteNumber}.pdf`
@@ -540,194 +408,6 @@ export default function HomePage() {
         <h1 className="text-3xl font-bold text-blue-600 dark:text-blue-400 mb-8 text-center">
           Quote Generator
         </h1>
-
-        {/* Company Settings Accordion */}
-        <details
-          className="mb-6 group"
-          open={showCompanySettings}
-          onToggle={(e) => setShowCompanySettings((e.target as HTMLDetailsElement).open)}
-        >
-          <summary className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-blue-50 to-transparent dark:from-gray-800 dark:to-gray-800 hover:from-blue-100 dark:hover:from-gray-700 rounded-lg cursor-pointer list-none border border-gray-200 dark:border-gray-700 transition-all duration-200">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                <svg className="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-              </div>
-              <span className="font-medium text-gray-700 dark:text-gray-200">Company Settings</span>
-            </div>
-            <svg className="w-5 h-5 text-gray-400 transition-transform duration-200 group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </summary>
-
-          <div className="card mt-2 border-l-4 border-blue-500">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Company Information</h2>
-
-            {/* Logo Upload Section */}
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Company Logo
-              </label>
-
-              {/* Current Logo Preview */}
-              {info.companyLogoUrl && (
-                <div className="mb-3 p-3 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center gap-4">
-                  <img
-                    src={info.companyLogoUrl}
-                    alt="Company Logo"
-                    className="h-12 object-contain"
-                  />
-                  <button
-                    onClick={() => {
-                      setInfo(prev => ({ ...prev, companyLogoUrl: '' }))
-                      localStorage.removeItem('selectedLogoUrl')
-                    }}
-                    className="text-red-500 hover:text-red-700 text-sm"
-                  >
-                    Remove
-                  </button>
-                </div>
-              )}
-
-              {/* Upload Area */}
-              <div
-                onDrop={handleDrop}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onClick={() => fileInputRef.current?.click()}
-                className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
-                  dragOver
-                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                    : 'border-gray-300 dark:border-gray-600 hover:border-blue-400'
-                }`}
-              >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileSelect}
-                  className="hidden"
-                />
-                {uploading ? (
-                  <div className="flex items-center justify-center gap-2">
-                    <svg className="animate-spin h-5 w-5 text-blue-500" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                    </svg>
-                    <span className="text-gray-600 dark:text-gray-400">Uploading...</span>
-                  </div>
-                ) : (
-                  <>
-                    <svg className="w-10 h-10 mx-auto text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                    <p className="text-gray-600 dark:text-gray-400">
-                      Drag & drop your logo here, or <span className="text-blue-500">click to browse</span>
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1">PNG, JPG up to 5MB</p>
-                  </>
-                )}
-              </div>
-
-              {/* Saved Logos */}
-              {savedLogos.length > 0 && (
-                <div className="mt-3">
-                  <button
-                    onClick={() => setShowSavedLogos(!showSavedLogos)}
-                    className="text-sm text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
-                  >
-                    <svg className={`w-3 h-3 transition-transform ${showSavedLogos ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                    Previously uploaded logos ({savedLogos.length})
-                  </button>
-
-                  {showSavedLogos && (
-                    <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-2">
-                      {savedLogos.map((logo) => (
-                        <div
-                          key={logo.url}
-                          className={`relative p-2 border rounded-lg cursor-pointer hover:border-blue-500 transition-colors ${
-                            info.companyLogoUrl === logo.url ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-200 dark:border-gray-600'
-                          }`}
-                          onClick={() => selectSavedLogo(logo)}
-                        >
-                          <img
-                            src={logo.url}
-                            alt={logo.name}
-                            className="h-10 w-full object-contain"
-                          />
-                          <p className="text-xs text-gray-500 truncate mt-1">{logo.name}</p>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              deleteSavedLogo(logo.url)
-                            }}
-                            className="absolute top-1 right-1 p-1 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded"
-                          >
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Company Name</label>
-                <input
-                  type="text"
-                  className="input-field"
-                  value={info.companyName}
-                  onChange={(e) => setInfo({ ...info, companyName: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tagline</label>
-                <input
-                  type="text"
-                  className="input-field"
-                  value={info.companyTagline}
-                  onChange={(e) => setInfo({ ...info, companyTagline: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Phone</label>
-                <input
-                  type="text"
-                  className="input-field"
-                  value={info.companyPhone}
-                  onChange={(e) => setInfo({ ...info, companyPhone: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">License #</label>
-                <input
-                  type="text"
-                  className="input-field"
-                  value={info.companyLicense}
-                  onChange={(e) => setInfo({ ...info, companyLicense: e.target.value })}
-                />
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Website</label>
-                <input
-                  type="text"
-                  className="input-field"
-                  value={info.companyWebsite}
-                  onChange={(e) => setInfo({ ...info, companyWebsite: e.target.value })}
-                />
-              </div>
-            </div>
-          </div>
-        </details>
 
         {/* Project & Quote Info */}
         <div className="card mb-6">
