@@ -116,7 +116,7 @@ export default function HomePage() {
   const [savedLogos, setSavedLogos] = useState<SavedLogo[]>([])
   const [showSavedLogos, setShowSavedLogos] = useState(false)
 
-  // Load saved logos from localStorage on mount
+  // Load saved logos and selected logo from localStorage on mount
   useEffect(() => {
     const saved = localStorage.getItem(SAVED_LOGOS_KEY)
     if (saved) {
@@ -125,6 +125,11 @@ export default function HomePage() {
       } catch (e) {
         console.error('Failed to parse saved logos:', e)
       }
+    }
+    // Restore last selected logo
+    const lastLogo = localStorage.getItem('selectedLogoUrl')
+    if (lastLogo) {
+      setInfo(prev => ({ ...prev, companyLogoUrl: lastLogo }))
     }
   }, [])
 
@@ -156,8 +161,9 @@ export default function HomePage() {
 
       const data = await response.json()
 
-      // Set the logo URL
+      // Set the logo URL and persist it
       setInfo(prev => ({ ...prev, companyLogoUrl: data.url }))
+      localStorage.setItem('selectedLogoUrl', data.url)
 
       // Save to recent logos
       const newLogo: SavedLogo = {
@@ -204,6 +210,7 @@ export default function HomePage() {
 
   const selectSavedLogo = (logo: SavedLogo) => {
     setInfo(prev => ({ ...prev, companyLogoUrl: logo.url }))
+    localStorage.setItem('selectedLogoUrl', logo.url)
     setShowSavedLogos(false)
   }
 
@@ -212,6 +219,7 @@ export default function HomePage() {
     saveLogosToStorage(updatedLogos)
     if (info.companyLogoUrl === url) {
       setInfo(prev => ({ ...prev, companyLogoUrl: '' }))
+      localStorage.removeItem('selectedLogoUrl')
     }
   }
 
@@ -572,7 +580,10 @@ export default function HomePage() {
                     className="h-12 object-contain"
                   />
                   <button
-                    onClick={() => setInfo(prev => ({ ...prev, companyLogoUrl: '' }))}
+                    onClick={() => {
+                      setInfo(prev => ({ ...prev, companyLogoUrl: '' }))
+                      localStorage.removeItem('selectedLogoUrl')
+                    }}
                     className="text-red-500 hover:text-red-700 text-sm"
                   >
                     Remove
@@ -860,7 +871,8 @@ export default function HomePage() {
                     type="number"
                     min="0"
                     step="1"
-                    className="input-field text-center"
+                    inputMode="numeric"
+                    className="input-field text-center w-24 md:w-full"
                     value={item.quantity}
                     onChange={(e) => updateLineItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
                     onKeyDown={handleLineItemKeyDown}
