@@ -65,3 +65,24 @@ body {
 .dark table thead { background-color: rgb(31, 41, 55); }
 .dark table tbody tr:nth-child(even) { background-color: rgb(31, 41, 55); }
 .dark table tbody tr:hover { background-color: rgb(55, 65, 81); }
+
+/* Details/Summary accordion animation */
+details > summary {
+  list-style: none;
+}
+details > summary::-webkit-details-marker {
+  display: none;
+}
+details[open] > summary ~ * {
+  animation: slideDown 0.2s ease-out;
+}
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
