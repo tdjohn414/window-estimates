@@ -295,8 +295,8 @@ export default function HomePage() {
             img.src = info.companyLogoUrl
           })
           // Calculate dimensions to maintain aspect ratio
-          const maxWidth = 60
-          const maxHeight = 20
+          const maxWidth = 80
+          const maxHeight = 30
           const imgRatio = img.width / img.height
           let imgWidth = maxWidth
           let imgHeight = imgWidth / imgRatio
