@@ -243,10 +243,42 @@ export default function HomePage() {
     }
 
     // Project Name Quote title - vertically centered with logo
-    doc.setFontSize(18)
+    // Handle long project names (>18 chars): try line break first, then reduce font size
+    const projectTitle = info.projectName.toUpperCase().slice(0, 25) + ' QUOTE'
     doc.setFont('helvetica', 'bold')
     doc.setTextColor(...blackText)
-    doc.text(info.projectName.toUpperCase() + ' QUOTE', pageWidth - margin, y + (logoHeight / 2) + 3, { align: 'right' })
+
+    const titleX = pageWidth - margin
+    const titleCenterY = y + (logoHeight / 2)
+
+    if (info.projectName.length > 18) {
+      // Try to split into two lines
+      const words = projectTitle.split(' ')
+      const quoteWord = words.pop() // Remove 'QUOTE'
+      const projectWords = words
+
+      // Find a good split point (roughly middle)
+      let line1 = ''
+      let line2 = ''
+      let midPoint = Math.ceil(projectWords.length / 2)
+      line1 = projectWords.slice(0, midPoint).join(' ')
+      line2 = projectWords.slice(midPoint).join(' ') + ' ' + quoteWord
+
+      // If line break works well, use smaller font with 2 lines
+      if (line1.length <= 20 && line2.length <= 20) {
+        doc.setFontSize(14)
+        doc.text(line1, titleX, titleCenterY - 2, { align: 'right' })
+        doc.text(line2, titleX, titleCenterY + 6, { align: 'right' })
+      } else {
+        // Use variable font size based on length
+        const fontSize = Math.max(12, 18 - (info.projectName.length - 18) * 0.8)
+        doc.setFontSize(fontSize)
+        doc.text(projectTitle, titleX, titleCenterY + 3, { align: 'right' })
+      }
+    } else {
+      doc.setFontSize(18)
+      doc.text(projectTitle, titleX, titleCenterY + 3, { align: 'right' })
+    }
 
     // Line right after logo (10px gap below image)
     y += logoHeight + 4
@@ -305,18 +337,18 @@ export default function HomePage() {
     const hasAnyRoom = filteredItems.some(item => item.room.trim() !== '')
 
     // Calculate proper column widths to fit within margins
-    const tableWidth = pageWidth - 28 // 14px margin each side
+    const colWidth = pageWidth - (margin * 2)
 
     let tableHead: string[][]
     let tableData: string[][]
     let columnStyles: any
 
     if (hasAnyRoom) {
-      const roomWidth = tableWidth * 0.20
-      const descWidth = tableWidth * 0.35
-      const qtyWidth = tableWidth * 0.08
-      const priceWidth = tableWidth * 0.18
-      const totalWidth = tableWidth * 0.19
+      const roomWidth = colWidth * 0.20
+      const descWidth = colWidth * 0.35
+      const qtyWidth = colWidth * 0.08
+      const priceWidth = colWidth * 0.18
+      const totalWidth = colWidth * 0.19
 
       tableHead = [['ROOM', 'DESCRIPTION', 'QTY', 'PRICE', 'TOTAL']]
       tableData = filteredItems.map(item => [
@@ -334,10 +366,10 @@ export default function HomePage() {
         4: { cellWidth: totalWidth, halign: 'right', fontStyle: 'bold' },
       }
     } else {
-      const descWidth = tableWidth * 0.50
-      const qtyWidth = tableWidth * 0.12
-      const priceWidth = tableWidth * 0.19
-      const totalWidth = tableWidth * 0.19
+      const descWidth = colWidth * 0.50
+      const qtyWidth = colWidth * 0.12
+      const priceWidth = colWidth * 0.19
+      const totalWidth = colWidth * 0.19
 
       tableHead = [['DESCRIPTION', 'QTY', 'PRICE', 'TOTAL']]
       tableData = filteredItems.map(item => [
@@ -406,7 +438,7 @@ export default function HomePage() {
 
     const totalBoxY = finalY + 18
     doc.setFillColor(...headerBlack)
-    doc.rect(labelsX - 5, totalBoxY - 4, totalsX - labelsX + 10, 14, 'F')
+    doc.roundedRect(labelsX - 5, totalBoxY - 4, totalsX - labelsX + 10, 14, 2, 2, 'F')
 
     doc.setFontSize(12)
     doc.setFont('helvetica', 'bold')
@@ -572,6 +604,7 @@ export default function HomePage() {
                     type="text"
                     placeholder="e.g., Desert Ridge"
                     className="input-field"
+                    maxLength={25}
                     value={info.projectName}
                     onChange={(e) => setInfo({ ...info, projectName: e.target.value })}
                   />
