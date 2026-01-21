@@ -20,7 +20,7 @@ const COMPANY = {
   phone: '623-498-1939',
   license: 'ROC#325171',
   website: 'https://www.sunnystateglass.com/',
-  logoUrl: 'https://res.cloudinary.com/dqvolqe3u/image/upload/v1768965708/Image_yfickb.png',
+  logoUrl: 'https://res.cloudinary.com/dqvolqe3u/image/upload/v1769019618/Image_nklqur.png',
 }
 
 interface QuoteInfo {
@@ -216,15 +216,14 @@ export default function HomePage() {
     const headerBlack = [0, 0, 0] as [number, number, number]
     const blackText = [0, 0, 0] as [number, number, number]
 
-    const margin = 12.7 // 0.5 inch margin (left/right/bottom)
-    const topMargin = 0 // no top padding
-    const bottomMargin = margin // same as left/right
-    let y = topMargin
+    const margin = 12.7 // 0.5 inch margin (all sides)
+    const bottomMargin = margin
+    let y = margin
 
-    // Fixed header row height - line always goes here regardless of logo size
-    const headerRowHeight = 45
+    // Company Logo - use fixed width, calculate height from aspect ratio
+    const logoWidth = 80
+    let logoHeight = 20 // fallback
 
-    // Company Logo - scales to fit within header row
     try {
       const img = new Image()
       img.crossOrigin = 'anonymous'
@@ -233,17 +232,9 @@ export default function HomePage() {
         img.onerror = reject
         img.src = COMPANY.logoUrl
       })
-      const maxWidth = 120
       const imgRatio = img.width / img.height
-      let imgHeight = headerRowHeight
-      let imgWidth = imgHeight * imgRatio
-      if (imgWidth > maxWidth) {
-        imgWidth = maxWidth
-        imgHeight = imgWidth / imgRatio
-      }
-      // Vertically center logo within header row
-      const logoY = y + (headerRowHeight - imgHeight) / 2
-      doc.addImage(img, 'PNG', margin, logoY, imgWidth, imgHeight)
+      logoHeight = logoWidth / imgRatio
+      doc.addImage(img, 'PNG', margin, y, logoWidth, logoHeight)
     } catch (e) {
       doc.setFontSize(16)
       doc.setFont('helvetica', 'bold')
@@ -251,18 +242,19 @@ export default function HomePage() {
       doc.text(COMPANY.name, margin, y + 10)
     }
 
-    // Project Name Quote title - vertically centered with header row
+    // Project Name Quote title - vertically centered with logo
     doc.setFontSize(18)
     doc.setFont('helvetica', 'bold')
     doc.setTextColor(...blackText)
-    doc.text(info.projectName.toUpperCase() + ' QUOTE', pageWidth - margin, y + (headerRowHeight / 2) + 3, { align: 'right' })
+    doc.text(info.projectName.toUpperCase() + ' QUOTE', pageWidth - margin, y + (logoHeight / 2) + 3, { align: 'right' })
 
-    y += headerRowHeight
+    // Line right after logo
+    y += logoHeight + 1
     doc.setDrawColor(200, 200, 200)
     doc.setLineWidth(0.5)
     doc.line(margin, y, pageWidth - margin, y)
 
-    y += 2
+    y += 3
 
     // Client info section
     doc.setFontSize(9)
