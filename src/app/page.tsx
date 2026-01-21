@@ -1,10 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTheme } from '@/components/ThemeProvider'
+import { generateTestData } from '@/data/testData'
 
 interface LineItem {
   id: string
+  room: string
   description: string
   quantity: number
   unitPrice: number
@@ -18,7 +20,7 @@ const COMPANY = {
   phone: '623-498-1939',
   license: 'ROC#325171',
   website: 'https://www.sunnystateglass.com/',
-  logoUrl: 'https://res.cloudinary.com/dqvolqe3u/image/upload/v1768354633/estimate-logos/hp0coccezzjk8utekfly.png',
+  logoUrl: 'https://res.cloudinary.com/dqvolqe3u/image/upload/v1768965708/Image_yfickb.png',
 }
 
 interface QuoteInfo {
@@ -79,7 +81,7 @@ export default function HomePage() {
     projectName: '',
     quoteNumber: '01',
     quoteDate: formatDate(new Date()),
-    validUntil: formatDate(addBusinessDays(new Date(), 15)),
+    validUntil: formatDate(addBusinessDays(new Date(), 30)),
     useCustomValidUntil: false,
 
     clientName: '',
@@ -93,16 +95,68 @@ export default function HomePage() {
   })
 
   const [lineItems, setLineItems] = useState<LineItem[]>([
-    { id: crypto.randomUUID(), description: '', quantity: 1, unitPrice: 0, total: 0 }
+    { id: crypto.randomUUID(), room: '', description: '', quantity: 1, unitPrice: 0, total: 0 }
   ])
 
   const [generating, setGenerating] = useState(false)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const previewTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const [formWidth, setFormWidth] = useState(70) // percentage
+  const isDragging = useRef(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [testLineItemCount, setTestLineItemCount] = useState(3)
+
+  // Fill form with test data
+  const fillTestData = () => {
+    const testData = generateTestData(testLineItemCount)
+    setInfo(prev => ({
+      ...prev,
+      projectName: testData.projectName,
+      quoteNumber: testData.quoteNumber,
+      clientName: testData.clientName,
+      clientPhone: testData.clientPhone,
+      clientEmail: testData.clientEmail,
+      laborInstallation: testData.laborInstallation,
+    }))
+    setLineItems(testData.lineItems)
+  }
+
+  // Handle resize drag
+  const handleMouseDown = useCallback(() => {
+    isDragging.current = true
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+  }, [])
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDragging.current || !containerRef.current) return
+      const containerRect = containerRef.current.getBoundingClientRect()
+      const newWidth = ((e.clientX - containerRect.left) / containerRect.width) * 100
+      // Clamp between 30% and 80%
+      setFormWidth(Math.min(80, Math.max(30, newWidth)))
+    }
+
+    const handleMouseUp = () => {
+      isDragging.current = false
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [])
 
   const addLineItem = () => {
     const newId = crypto.randomUUID()
     setLineItems([
       ...lineItems,
-      { id: newId, description: '', quantity: 1, unitPrice: 0, total: 0 }
+      { id: newId, room: '', description: '', quantity: 1, unitPrice: 0, total: 0 }
     ])
     // Focus the new row's description field after render
     setTimeout(() => {
@@ -136,7 +190,7 @@ export default function HomePage() {
 
   const deleteLineItem = (id: string) => {
     if (lineItems.length === 1) {
-      setLineItems([{ id: crypto.randomUUID(), description: '', quantity: 1, unitPrice: 0, total: 0 }])
+      setLineItems([{ id: crypto.randomUUID(), room: '', description: '', quantity: 1, unitPrice: 0, total: 0 }])
     } else {
       setLineItems(items => items.filter(item => item.id !== id))
     }
@@ -149,230 +203,310 @@ export default function HomePage() {
     return amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   }
 
-  const generatePDF = async () => {
-    setGenerating(true)
+  // Core PDF generation logic - returns the doc for preview or saves for download
+  const buildPDF = useCallback(async (mode: 'preview' | 'download') => {
+    const { default: jsPDF } = await import('jspdf')
+    const { default: autoTable } = await import('jspdf-autotable')
 
+    const doc = new jsPDF()
+    const pageWidth = doc.internal.pageSize.getWidth()
+    const pageHeight = doc.internal.pageSize.getHeight()
+
+    const primaryBlack = [0, 0, 0] as [number, number, number]
+    const headerBlack = [0, 0, 0] as [number, number, number]
+    const blackText = [0, 0, 0] as [number, number, number]
+
+    const margin = 12.7 // 0.5 inch margin
+    const bottomMargin = 25.4 // 1 inch bottom margin
+    let y = margin
+
+    // Fixed header row height - line always goes here regardless of logo size
+    const headerRowHeight = 35
+
+    // Company Logo - scales to fit within header row
     try {
-      const { default: jsPDF } = await import('jspdf')
-      const { default: autoTable } = await import('jspdf-autotable')
-
-      const doc = new jsPDF()
-      const pageWidth = doc.internal.pageSize.getWidth()
-      const pageHeight = doc.internal.pageSize.getHeight()
-
-      const primaryBlue = [0, 102, 204] as [number, number, number]
-      const lightBlue = [0, 153, 255] as [number, number, number]
-      const headerBlue = [51, 153, 255] as [number, number, number]
-      const blackText = [0, 0, 0] as [number, number, number]
-
-      let y = 15
-
-      // Company Logo
-      try {
-        const img = new Image()
-        img.crossOrigin = 'anonymous'
-        await new Promise((resolve, reject) => {
-          img.onload = resolve
-          img.onerror = reject
-          img.src = COMPANY.logoUrl
-        })
-        // Calculate dimensions to maintain aspect ratio
-        const maxWidth = 80
-        const maxHeight = 30
-        const imgRatio = img.width / img.height
-        let imgWidth = maxWidth
-        let imgHeight = imgWidth / imgRatio
-
-        // If height exceeds max, scale down based on height instead
-        if (imgHeight > maxHeight) {
-          imgHeight = maxHeight
-          imgWidth = imgHeight * imgRatio
-        }
-
-        doc.addImage(img, 'PNG', 14, y, imgWidth, imgHeight)
-      } catch (e) {
-        doc.setFontSize(16)
-        doc.setFont('helvetica', 'bold')
-        doc.setTextColor(...primaryBlue)
-        doc.text(COMPANY.name, 14, y + 10)
+      const img = new Image()
+      img.crossOrigin = 'anonymous'
+      await new Promise((resolve, reject) => {
+        img.onload = resolve
+        img.onerror = reject
+        img.src = COMPANY.logoUrl
+      })
+      const maxWidth = 120
+      const imgRatio = img.width / img.height
+      let imgHeight = headerRowHeight
+      let imgWidth = imgHeight * imgRatio
+      if (imgWidth > maxWidth) {
+        imgWidth = maxWidth
+        imgHeight = imgWidth / imgRatio
       }
-
-      // Project Name Quote title - lighter blue, clean font
-      doc.setFontSize(20)
+      // Vertically center logo within header row
+      const logoY = y + (headerRowHeight - imgHeight) / 2
+      doc.addImage(img, 'PNG', margin, logoY, imgWidth, imgHeight)
+    } catch (e) {
+      doc.setFontSize(16)
       doc.setFont('helvetica', 'bold')
-      doc.setTextColor(...lightBlue)
-      doc.text(info.projectName.toUpperCase() + ' QUOTE', pageWidth - 14, y + 10, { align: 'right' })
+      doc.setTextColor(...primaryBlack)
+      doc.text(COMPANY.name, margin, y + 10)
+    }
 
-      y += 14
-      // Tagline in gray/black, not blue - closer to logo
-      doc.setFontSize(10)
-      doc.setFont('helvetica', 'italic')
-      doc.setTextColor(100, 100, 100)
-      doc.text(COMPANY.tagline, 14, y)
+    // Project Name Quote title - vertically centered with header row
+    doc.setFontSize(18)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...blackText)
+    doc.text(info.projectName.toUpperCase() + ' QUOTE', pageWidth - margin, y + (headerRowHeight / 2) + 3, { align: 'right' })
 
-      y += 8
-      doc.setDrawColor(200, 200, 200)
-      doc.setLineWidth(0.5)
-      doc.line(14, y, pageWidth - 14, y)
+    y += headerRowHeight
+    doc.setDrawColor(200, 200, 200)
+    doc.setLineWidth(0.5)
+    doc.line(margin, y, pageWidth - margin, y)
 
-      y += 8
+    y += 2
 
-      doc.setFontSize(11)
-      doc.setFont('helvetica', 'bold')
-      doc.setTextColor(...blackText)
-      doc.text('Client:', 14, y)
+    // Client info section
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(100, 100, 100)
+    doc.text('CLIENT', margin, y + 2)
 
-      doc.setFont('helvetica', 'normal')
-      doc.text(info.clientName || '', 14, y + 7)
-      if (info.clientPhone) doc.text(info.clientPhone, 14, y + 14)
-      if (info.clientEmail) doc.text(info.clientEmail, 14, y + 21)
+    doc.setFontSize(11)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...blackText)
+    doc.text(info.clientName || '', margin, y + 10)
 
-      const rightX = pageWidth - 14
-      doc.setFont('helvetica', 'bold')
-      doc.text('QUOTE #:', rightX - 50, y)
-      doc.setFont('helvetica', 'normal')
-      doc.text(info.quoteNumber, rightX, y, { align: 'right' })
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(60, 60, 60)
+    if (info.clientPhone) doc.text(info.clientPhone, margin, y + 17)
+    if (info.clientEmail) doc.text(info.clientEmail, margin, y + 24)
 
-      doc.setFont('helvetica', 'bold')
-      doc.text('DATE:', rightX - 50, y + 7)
-      doc.setFont('helvetica', 'normal')
-      doc.text(info.quoteDate, rightX, y + 7, { align: 'right' })
+    // Quote details on the right
+    const rightX = pageWidth - margin
+    const labelX = pageWidth - 75
 
-      doc.setFont('helvetica', 'bold')
-      doc.text('VALID UNTIL:', rightX - 50, y + 14)
-      doc.setFont('helvetica', 'normal')
-      doc.text(info.validUntil, rightX, y + 14, { align: 'right' })
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(100, 100, 100)
+    doc.text('QUOTE #', labelX, y + 2)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(...blackText)
+    doc.text(info.quoteNumber, rightX, y + 2, { align: 'right' })
 
-      y += 30
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(100, 100, 100)
+    doc.text('DATE', labelX, y + 11)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(...blackText)
+    doc.text(info.quoteDate, rightX, y + 11, { align: 'right' })
 
-      const tableData = lineItems
-        .filter(item => item.description.trim() !== '')
-        .map(item => [
-          item.description,
-          item.quantity.toString(),
-          '$' + formatCurrency(item.unitPrice),
-          '$' + formatCurrency(item.total)
-        ])
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(100, 100, 100)
+    doc.text('VALID UNTIL', labelX, y + 20)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(...blackText)
+    doc.text(info.validUntil, rightX, y + 20, { align: 'right' })
 
-      // Calculate proper column widths to fit within margins
-      const tableWidth = pageWidth - 28 // 14px margin each side
+    y += 32 + 8
+
+    const filteredItems = lineItems.filter(item => item.description.trim() !== '')
+    const hasAnyRoom = filteredItems.some(item => item.room.trim() !== '')
+
+    // Calculate proper column widths to fit within margins
+    const tableWidth = pageWidth - 28 // 14px margin each side
+
+    let tableHead: string[][]
+    let tableData: string[][]
+    let columnStyles: any
+
+    if (hasAnyRoom) {
+      const roomWidth = tableWidth * 0.20
+      const descWidth = tableWidth * 0.35
+      const qtyWidth = tableWidth * 0.08
+      const priceWidth = tableWidth * 0.18
+      const totalWidth = tableWidth * 0.19
+
+      tableHead = [['ROOM', 'DESCRIPTION', 'QTY', 'PRICE', 'TOTAL']]
+      tableData = filteredItems.map(item => [
+        item.room || '',
+        item.description,
+        item.quantity.toString(),
+        '$' + formatCurrency(item.unitPrice),
+        '$' + formatCurrency(item.total)
+      ])
+      columnStyles = {
+        0: { cellWidth: roomWidth, halign: 'left' },
+        1: { cellWidth: descWidth, halign: 'left' },
+        2: { cellWidth: qtyWidth, halign: 'center' },
+        3: { cellWidth: priceWidth, halign: 'right' },
+        4: { cellWidth: totalWidth, halign: 'right', fontStyle: 'bold' },
+      }
+    } else {
       const descWidth = tableWidth * 0.50
       const qtyWidth = tableWidth * 0.12
       const priceWidth = tableWidth * 0.19
       const totalWidth = tableWidth * 0.19
 
-      autoTable(doc, {
-        startY: y,
-        head: [['DESCRIPTION', 'QTY', 'UNIT PRICE', 'TOTAL']],
-        body: tableData,
-        theme: 'grid',
-        headStyles: {
-          fillColor: headerBlue,
-          textColor: [255, 255, 255],
-          fontStyle: 'bold',
-          fontSize: 11,
-          cellPadding: 6,
-          halign: 'left',
-        },
-        bodyStyles: {
-          fontSize: 11,
-          cellPadding: 6,
-          lineColor: [230, 230, 230],
-          lineWidth: 0.1,
-        },
-        alternateRowStyles: {
-          fillColor: [250, 250, 250],
-        },
-        columnStyles: {
-          0: { cellWidth: descWidth, halign: 'left' },
-          1: { cellWidth: qtyWidth, halign: 'center' },
-          2: { cellWidth: priceWidth, halign: 'right' },
-          3: { cellWidth: totalWidth, halign: 'right', fontStyle: 'bold' },
-        },
-        margin: { left: 14, right: 14 },
-        tableLineWidth: 0,
-        tableLineColor: [255, 255, 255],
-        styles: {
-          overflow: 'linebreak',
-          cellWidth: 'wrap',
-        },
-      })
+      tableHead = [['DESCRIPTION', 'QTY', 'PRICE', 'TOTAL']]
+      tableData = filteredItems.map(item => [
+        item.description,
+        item.quantity.toString(),
+        '$' + formatCurrency(item.unitPrice),
+        '$' + formatCurrency(item.total)
+      ])
+      columnStyles = {
+        0: { cellWidth: descWidth, halign: 'left' },
+        1: { cellWidth: qtyWidth, halign: 'center' },
+        2: { cellWidth: priceWidth, halign: 'right' },
+        3: { cellWidth: totalWidth, halign: 'right', fontStyle: 'bold' },
+      }
+    }
 
-      let finalY = (doc as any).lastAutoTable.finalY + 5
+    autoTable(doc, {
+      startY: y,
+      head: tableHead,
+      body: tableData,
+      theme: 'grid',
+      headStyles: {
+        fillColor: headerBlack,
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        fontSize: 10,
+        cellPadding: 3,
+        halign: 'left',
+      },
+      bodyStyles: {
+        fontSize: 10,
+        cellPadding: 4,
+        lineColor: [230, 230, 230],
+        lineWidth: 0.1,
+      },
+      alternateRowStyles: {
+        fillColor: [250, 250, 250],
+      },
+      columnStyles,
+      margin: { left: margin, right: margin },
+      tableLineWidth: 0,
+      tableLineColor: [255, 255, 255],
+      styles: {
+        overflow: 'linebreak',
+        cellWidth: 'wrap',
+      },
+    })
 
-      const totalsX = pageWidth - 14
-      const labelsX = pageWidth - 90
+    let finalY = (doc as any).lastAutoTable.finalY + 10
 
-      doc.setFontSize(11)
-      doc.setFont('helvetica', 'bold')
-      doc.setTextColor(...blackText)
-      doc.text('SUBTOTAL:', labelsX, finalY + 8)
-      doc.setFont('helvetica', 'normal')
-      doc.text('$' + formatCurrency(subtotal), totalsX, finalY + 8, { align: 'right' })
+    // Totals on the right
+    const totalsX = pageWidth - margin
+    const labelsX = pageWidth - 90
 
-      doc.setFont('helvetica', 'bold')
-      doc.text('LABOR & INSTALLATION:', labelsX, finalY + 16)
-      doc.setFont('helvetica', 'normal')
-      doc.text('$' + formatCurrency(info.laborInstallation), totalsX, finalY + 16, { align: 'right' })
+    doc.setFontSize(11)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...blackText)
+    doc.text('SUBTOTAL:', labelsX, finalY)
+    doc.setFont('helvetica', 'normal')
+    doc.text('$' + formatCurrency(subtotal), totalsX, finalY, { align: 'right' })
 
-      finalY += 26
-      doc.setFillColor(...headerBlue)
-      doc.rect(labelsX - 5, finalY - 4, totalsX - labelsX + 10, 14, 'F')
+    doc.setFont('helvetica', 'bold')
+    doc.text('LABOR & INSTALLATION:', labelsX, finalY + 8)
+    doc.setFont('helvetica', 'normal')
+    doc.text('$' + formatCurrency(info.laborInstallation), totalsX, finalY + 8, { align: 'right' })
 
-      doc.setFontSize(12)
-      doc.setFont('helvetica', 'bold')
-      doc.setTextColor(255, 255, 255)
-      doc.text('TOTAL AMOUNT:', labelsX, finalY + 5)
-      doc.text('$' + formatCurrency(totalAmount), totalsX, finalY + 5, { align: 'right' })
+    const totalBoxY = finalY + 18
+    doc.setFillColor(...headerBlack)
+    doc.rect(labelsX - 5, totalBoxY - 4, totalsX - labelsX + 10, 14, 'F')
 
-      const bottomY = finalY + 45
+    doc.setFontSize(12)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(255, 255, 255)
+    doc.text('TOTAL AMOUNT:', labelsX, totalBoxY + 5)
+    doc.text('$' + formatCurrency(totalAmount), totalsX, totalBoxY + 5, { align: 'right' })
 
-      doc.setFontSize(11)
-      doc.setFont('helvetica', 'bold')
-      doc.setTextColor(...blackText)
-      doc.text('NOTES:', 14, bottomY)
+    // Notes on the left - aligned with TOTAL AMOUNT row
+    const notesWidth = 90
+    const notesStartY = totalBoxY - 14 // Moved up 10px
+    doc.setFontSize(11)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...blackText)
+    doc.text('NOTES:', margin, notesStartY)
 
-      doc.setFont('helvetica', 'normal')
-      doc.setFontSize(10)
-      const notesText = info.notes || getDefaultNotes(info.installationWeeks)
-      const splitNotes = doc.splitTextToSize(notesText, pageWidth - 28)
-      doc.text(splitNotes, 14, bottomY + 8)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(10)
+    const notesText = info.notes || getDefaultNotes(info.installationWeeks)
+    const splitNotes = doc.splitTextToSize(notesText, notesWidth)
+    doc.text(splitNotes, margin, notesStartY + 6)
 
-      // Footer section with styled bar
-      const footerY = pageHeight - 35
+    // Footer section - bottom left, stacked format
+    const footerX = margin
+    const footerY = pageHeight - bottomMargin - 20
 
-      // Footer divider line
-      doc.setDrawColor(200, 200, 200)
-      doc.setLineWidth(0.5)
-      doc.line(14, footerY - 8, pageWidth - 14, footerY - 8)
+    // Company name - bold
+    doc.setFontSize(11)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(0, 0, 0)
+    doc.text('Sunny State Glass', footerX, footerY)
 
-      // Company info on left
-      doc.setFontSize(10)
-      doc.setFont('helvetica', 'bold')
-      doc.setTextColor(...blackText)
-      doc.text(COMPANY.name, 14, footerY)
+    // ROC
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(80, 80, 80)
+    doc.text(COMPANY.license, footerX, footerY + 6)
 
-      doc.setFontSize(9)
-      doc.setFont('helvetica', 'normal')
-      doc.setTextColor(80, 80, 80)
-      doc.text(COMPANY.tagline, 14, footerY + 5)
+    // Phone
+    doc.text(COMPANY.phone, footerX, footerY + 12)
 
-      // Contact info in middle
-      const centerX = pageWidth / 2
-      doc.setFont('helvetica', 'normal')
-      doc.setTextColor(...blackText)
-      doc.text(COMPANY.phone, centerX, footerY, { align: 'center' })
-      doc.text(COMPANY.license, centerX, footerY + 5, { align: 'center' })
+    // Website - blue link
+    doc.setTextColor(0, 102, 204)
+    doc.textWithLink(COMPANY.website.replace('https://', '').replace('http://', ''), footerX, footerY + 18, { url: COMPANY.website })
 
-      // Website on right
-      doc.setTextColor(...primaryBlue)
-      doc.textWithLink(COMPANY.website.replace('https://', '').replace('http://', ''), pageWidth - 14, footerY, { url: COMPANY.website, align: 'right' })
-
+    if (mode === 'download') {
       const fileName = info.projectName
         ? `${info.projectName.replace(/\s+/g, '_')}_Quote_${info.quoteNumber}.pdf`
         : `Quote_${info.quoteNumber}.pdf`
       doc.save(fileName)
+      return null
+    } else {
+      // Return blob URL for preview
+      const blob = doc.output('blob')
+      return URL.createObjectURL(blob)
+    }
+  }, [info, lineItems, subtotal, totalAmount])
 
+  // Update preview when form changes
+  useEffect(() => {
+    // Clear previous timeout
+    if (previewTimeoutRef.current) {
+      clearTimeout(previewTimeoutRef.current)
+    }
+
+    // Debounce preview generation
+    previewTimeoutRef.current = setTimeout(async () => {
+      try {
+        const url = await buildPDF('preview')
+        if (url) {
+          setPreviewUrl(oldUrl => {
+            // Revoke old URL to prevent memory leaks
+            if (oldUrl) {
+              URL.revokeObjectURL(oldUrl)
+            }
+            return url
+          })
+        }
+      } catch (error) {
+        console.error('Error generating preview:', error)
+      }
+    }, 300)
+
+    return () => {
+      if (previewTimeoutRef.current) {
+        clearTimeout(previewTimeoutRef.current)
+      }
+    }
+  }, [info, lineItems, buildPDF])
+
+  const generatePDF = async () => {
+    setGenerating(true)
+    try {
+      await buildPDF('download')
     } catch (error) {
       console.error('Error generating PDF:', error)
       alert('Failed to generate PDF')
@@ -404,12 +538,35 @@ export default function HomePage() {
         )}
       </button>
 
-      <div className="max-w-5xl mx-auto">
-        <h1 className="text-3xl font-bold text-blue-600 dark:text-blue-400 mb-8 text-center">
-          Quote Generator
-        </h1>
+      <div className="flex" ref={containerRef}>
+        {/* Left Column - Form */}
+        <div style={{ width: `${formWidth}%` }} className="pr-4 overflow-auto">
+          <div className="flex justify-between items-center mb-8">
+            <h1 className="text-3xl font-bold text-black dark:text-white text-center flex-1">
+              Sunny State Glass Quote Generator
+            </h1>
+            {/* Test Data Button */}
+            <div className="flex items-center gap-2 bg-yellow-100 dark:bg-yellow-900/30 px-3 py-2 rounded-lg">
+              <span className="text-sm text-yellow-800 dark:text-yellow-200">Test:</span>
+              <select
+                value={testLineItemCount}
+                onChange={(e) => setTestLineItemCount(parseInt(e.target.value))}
+                className="text-sm border border-yellow-300 dark:border-yellow-700 rounded px-2 py-1 bg-white dark:bg-gray-800"
+              >
+                {Array.from({ length: 20 }, (_, i) => i + 1).map(n => (
+                  <option key={n} value={n}>{n} items</option>
+                ))}
+              </select>
+              <button
+                onClick={fillTestData}
+                className="text-sm bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded font-medium transition-colors"
+              >
+                Fill
+              </button>
+            </div>
+          </div>
 
-        {/* Project & Quote Info */}
+          {/* Project & Quote Info */}
         <div className="card mb-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Project & Quote Details */}
@@ -454,7 +611,7 @@ export default function HomePage() {
                         type="checkbox"
                         checked={info.useCustomValidUntil}
                         onChange={(e) => setInfo({ ...info, useCustomValidUntil: e.target.checked })}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        className="rounded border-gray-300 text-black focus:ring-black"
                       />
                       Custom date
                     </label>
@@ -468,7 +625,7 @@ export default function HomePage() {
                     />
                   ) : (
                     <div className="input-field bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
-                      {info.validUntil} <span className="text-xs">(+15 business days)</span>
+                      {info.validUntil} <span className="text-xs">(+30 business days)</span>
                     </div>
                   )}
                 </div>
@@ -515,8 +672,9 @@ export default function HomePage() {
           </div>
 
           {/* Table Header */}
-          <div className="hidden md:grid grid-cols-12 gap-2 mb-2 text-sm font-medium text-gray-600 dark:text-gray-400 px-2 bg-blue-500 text-white py-2 rounded-t">
-            <div className="col-span-6">DESCRIPTION</div>
+          <div className="hidden md:grid grid-cols-12 gap-2 mb-2 text-sm font-medium text-gray-600 dark:text-gray-400 px-2 bg-black text-white py-2 rounded-t">
+            <div className="col-span-2">ROOM</div>
+            <div className="col-span-4">DESCRIPTION</div>
             <div className="col-span-1 text-center">QTY</div>
             <div className="col-span-2 text-right">UNIT PRICE</div>
             <div className="col-span-2 text-right">TOTAL</div>
@@ -530,8 +688,21 @@ export default function HomePage() {
                 key={item.id}
                 className={`grid grid-cols-1 md:grid-cols-12 gap-2 p-2 rounded-lg ${index % 2 === 0 ? 'bg-gray-50 dark:bg-gray-700/50' : 'bg-white dark:bg-gray-800'}`}
               >
+                {/* Room */}
+                <div className="md:col-span-2">
+                  <label className="md:hidden text-xs text-gray-500 dark:text-gray-400">Room</label>
+                  <input
+                    type="text"
+                    placeholder="Room (optional)"
+                    className="input-field"
+                    value={item.room}
+                    onChange={(e) => updateLineItem(item.id, 'room', e.target.value)}
+                    onKeyDown={handleLineItemKeyDown}
+                  />
+                </div>
+
                 {/* Description */}
-                <div className="md:col-span-6">
+                <div className="md:col-span-4">
                   <label className="md:hidden text-xs text-gray-500 dark:text-gray-400">Description</label>
                   <input
                     type="text"
@@ -626,7 +797,7 @@ export default function HomePage() {
               </div>
 
               {/* Total Amount */}
-              <div className="flex items-center gap-4 bg-blue-500 text-white px-4 py-2 rounded-lg mt-2">
+              <div className="flex items-center gap-4 bg-black text-white px-4 py-2 rounded-lg mt-2">
                 <span className="font-bold">TOTAL AMOUNT:</span>
                 <span className="text-xl font-bold w-32 text-right">${formatCurrency(totalAmount)}</span>
               </div>
@@ -688,9 +859,37 @@ export default function HomePage() {
         </div>
 
         {/* Summary */}
-        <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-4">
-          {lineItems.filter(i => i.description.trim()).length} item(s)
-        </p>
+          <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-4">
+            {lineItems.filter(i => i.description.trim()).length} item(s)
+          </p>
+        </div>
+
+        {/* Draggable Divider */}
+        <div
+          onMouseDown={handleMouseDown}
+          className="w-2 cursor-col-resize hover:bg-blue-500 bg-gray-300 dark:bg-gray-600 rounded-full flex-shrink-0 transition-colors"
+          title="Drag to resize"
+        />
+
+        {/* Right Column - PDF Preview */}
+        <div style={{ width: `${100 - formWidth}%` }} className="pl-4 sticky top-4 h-[calc(100vh-2rem)]">
+          <div className="card h-full flex flex-col">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Live Preview</h2>
+            <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden">
+              {previewUrl ? (
+                <iframe
+                  src={previewUrl}
+                  className="w-full h-full border-0"
+                  title="PDF Preview"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-gray-500 dark:text-gray-400">
+                  <span>Loading preview...</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   )
