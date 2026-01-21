@@ -216,12 +216,13 @@ export default function HomePage() {
     const headerBlack = [0, 0, 0] as [number, number, number]
     const blackText = [0, 0, 0] as [number, number, number]
 
-    const margin = 12.7 // 0.5 inch margin
-    const bottomMargin = 25.4 // 1 inch bottom margin
-    let y = margin
+    const margin = 12.7 // 0.5 inch margin (left/right/bottom)
+    const topMargin = 0 // no top padding
+    const bottomMargin = margin // same as left/right
+    let y = topMargin
 
     // Fixed header row height - line always goes here regardless of logo size
-    const headerRowHeight = 35
+    const headerRowHeight = 45
 
     // Company Logo - scales to fit within header row
     try {
