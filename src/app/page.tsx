@@ -248,13 +248,13 @@ export default function HomePage() {
     doc.setTextColor(...blackText)
     doc.text(info.projectName.toUpperCase() + ' QUOTE', pageWidth - margin, y + (logoHeight / 2) + 3, { align: 'right' })
 
-    // Line right after logo
-    y += logoHeight + 1
+    // Line right after logo (10px gap below image)
+    y += logoHeight + 4
     doc.setDrawColor(200, 200, 200)
     doc.setLineWidth(0.5)
     doc.line(margin, y, pageWidth - margin, y)
 
-    y += 3
+    y += 8
 
     // Client info section
     doc.setFontSize(9)
