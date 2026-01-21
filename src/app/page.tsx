@@ -102,6 +102,7 @@ export default function HomePage() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const previewTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const [formWidth, setFormWidth] = useState(70) // percentage
+  const [showPreview, setShowPreview] = useState(true)
   const isDragging = useRef(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const [testLineItemCount, setTestLineItemCount] = useState(3)
@@ -611,7 +612,7 @@ export default function HomePage() {
 
       <div className="flex" ref={containerRef}>
         {/* Left Column - Form */}
-        <div style={{ width: `${formWidth}%` }} className="pr-4 overflow-auto">
+        <div style={{ width: showPreview ? `${formWidth}%` : '100%' }} className="pr-4 overflow-auto transition-all duration-300">
           <div className="flex justify-between items-center mb-8">
             <h1 className="text-3xl font-bold text-black dark:text-white text-center flex-1">
               Sunny State Glass Quote Generator
@@ -949,12 +950,15 @@ export default function HomePage() {
         {/* Draggable Divider */}
         <div
           onMouseDown={handleMouseDown}
-          className="w-2 cursor-col-resize hover:bg-blue-500 bg-gray-300 dark:bg-gray-600 rounded-full flex-shrink-0 transition-colors"
+          className={`w-2 cursor-col-resize hover:bg-blue-500 bg-gray-300 dark:bg-gray-600 rounded-full flex-shrink-0 transition-all duration-300 ${showPreview ? 'opacity-100' : 'opacity-0 w-0'}`}
           title="Drag to resize"
         />
 
         {/* Right Column - PDF Preview */}
-        <div style={{ width: `${100 - formWidth}%` }} className="pl-4 sticky top-4 h-[calc(100vh-1rem)]">
+        <div
+          style={{ width: showPreview ? `${100 - formWidth}%` : '0%' }}
+          className={`pl-4 sticky top-4 h-[calc(100vh-1rem)] transition-all duration-300 ${showPreview ? 'opacity-100' : 'opacity-0 overflow-hidden'}`}
+        >
           <div className="card h-full flex flex-col">
             <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden">
               {previewUrl ? (
@@ -971,6 +975,18 @@ export default function HomePage() {
             </div>
           </div>
         </div>
+
+        {/* Preview Toggle Button - fixed position on right edge */}
+        <button
+          onClick={() => setShowPreview(!showPreview)}
+          className="fixed right-0 top-1/2 -translate-y-1/2 bg-black dark:bg-gray-700 text-white px-2 py-4 rounded-l-lg shadow-lg hover:bg-gray-800 dark:hover:bg-gray-600 transition-all duration-300 z-20"
+          title={showPreview ? "Hide preview" : "Show preview"}
+        >
+          <svg className="w-5 h-5 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={showPreview ? "M9 5l7 7-7 7" : "M15 19l-7-7 7-7"} />
+          </svg>
+          <span className="text-xs [writing-mode:vertical-lr] rotate-180">Preview</span>
+        </button>
       </div>
     </div>
   )
