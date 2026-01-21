@@ -121,6 +121,30 @@ export default function HomePage() {
     setLineItems(testData.lineItems)
   }
 
+  // Clear all form data
+  const clearAll = () => {
+    setInfo({
+      projectName: '',
+      quoteNumber: '01',
+      quoteDate: formatDate(new Date()),
+      validUntil: formatDate(addBusinessDays(new Date(), 30)),
+      useCustomValidUntil: false,
+      clientName: '',
+      clientPhone: '',
+      clientEmail: '',
+      laborInstallation: 0,
+      notes: '',
+      installationWeeks: 1,
+    })
+    setLineItems([
+      { id: crypto.randomUUID(), room: '', description: '', quantity: 1, unitPrice: 0, total: 0 }
+    ])
+  }
+
+  // Check if form has any data
+  const hasFormData = info.projectName || info.clientName || info.clientPhone || info.clientEmail ||
+    info.laborInstallation > 0 || lineItems.some(item => item.description || item.room)
+
   // Handle resize drag
   const handleMouseDown = useCallback(() => {
     isDragging.current = true
@@ -386,6 +410,15 @@ export default function HomePage() {
       }
     }
 
+    // Draw rounded header background first
+    const headerHeight = 10
+    const radius = 3
+    doc.setFillColor(...headerBlack)
+    doc.roundedRect(margin, y, colWidth, headerHeight, radius, radius, 'F')
+    // Fill in bottom corners to make them square
+    doc.rect(margin, y + headerHeight - radius, radius, radius, 'F')
+    doc.rect(margin + colWidth - radius, y + headerHeight - radius, radius, radius, 'F')
+
     autoTable(doc, {
       startY: y,
       head: tableHead,
@@ -571,23 +604,33 @@ export default function HomePage() {
               Sunny State Glass Quote Generator
             </h1>
             {/* Test Data Button */}
-            <div className="flex items-center gap-2 bg-yellow-100 dark:bg-yellow-900/30 px-3 py-2 rounded-lg">
-              <span className="text-sm text-yellow-800 dark:text-yellow-200">Test:</span>
-              <select
-                value={testLineItemCount}
-                onChange={(e) => setTestLineItemCount(parseInt(e.target.value))}
-                className="text-sm border border-yellow-300 dark:border-yellow-700 rounded px-2 py-1 bg-white dark:bg-gray-800"
-              >
-                {Array.from({ length: 20 }, (_, i) => i + 1).map(n => (
-                  <option key={n} value={n}>{n} items</option>
-                ))}
-              </select>
-              <button
-                onClick={fillTestData}
-                className="text-sm bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded font-medium transition-colors"
-              >
-                Fill
-              </button>
+            <div className="flex flex-col items-end gap-1 bg-yellow-100 dark:bg-yellow-900/30 px-3 py-2 rounded-lg">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-yellow-800 dark:text-yellow-200">Test:</span>
+                <select
+                  value={testLineItemCount}
+                  onChange={(e) => setTestLineItemCount(parseInt(e.target.value))}
+                  className="text-sm border border-yellow-300 dark:border-yellow-700 rounded px-2 py-1 bg-white dark:bg-gray-800"
+                >
+                  {Array.from({ length: 20 }, (_, i) => i + 1).map(n => (
+                    <option key={n} value={n}>{n} items</option>
+                  ))}
+                </select>
+                <button
+                  onClick={fillTestData}
+                  className="text-sm bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded font-medium transition-colors"
+                >
+                  Fill
+                </button>
+              </div>
+              {hasFormData && (
+                <button
+                  onClick={clearAll}
+                  className="text-sm bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded font-medium transition-colors w-full"
+                >
+                  Clear All
+                </button>
+              )}
             </div>
           </div>
 
@@ -898,9 +941,8 @@ export default function HomePage() {
         />
 
         {/* Right Column - PDF Preview */}
-        <div style={{ width: `${100 - formWidth}%` }} className="pl-4 sticky top-4 h-[calc(100vh-2rem)]">
+        <div style={{ width: `${100 - formWidth}%` }} className="pl-4 sticky top-4 h-[calc(100vh-1rem)]">
           <div className="card h-full flex flex-col">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Live Preview</h2>
             <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden">
               {previewUrl ? (
                 <iframe
