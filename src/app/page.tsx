@@ -410,14 +410,19 @@ export default function HomePage() {
       }
     }
 
-    // Draw rounded header background first
+    // Draw rounded header background
     const headerHeight = 10
     const radius = 3
-    doc.setFillColor(...headerBlack)
-    doc.roundedRect(margin, y, colWidth, headerHeight, radius, radius, 'F')
-    // Fill in bottom corners to make them square
-    doc.rect(margin, y + headerHeight - radius, radius, radius, 'F')
-    doc.rect(margin + colWidth - radius, y + headerHeight - radius, radius, radius, 'F')
+    const drawRoundedHeader = (startY: number) => {
+      doc.setFillColor(...headerBlack)
+      doc.roundedRect(margin, startY, colWidth, headerHeight, radius, radius, 'F')
+      // Fill in bottom corners to make them square
+      doc.rect(margin, startY + headerHeight - radius, radius, radius, 'F')
+      doc.rect(margin + colWidth - radius, startY + headerHeight - radius, radius, radius, 'F')
+    }
+
+    // Draw initial header
+    drawRoundedHeader(y)
 
     autoTable(doc, {
       startY: y,
@@ -442,12 +447,18 @@ export default function HomePage() {
         fillColor: [250, 250, 250],
       },
       columnStyles,
-      margin: { left: margin, right: margin },
+      margin: { left: margin, right: margin, top: margin, bottom: 60 },
       tableLineWidth: 0,
       tableLineColor: [255, 255, 255],
       styles: {
         overflow: 'linebreak',
         cellWidth: 'wrap',
+      },
+      didDrawPage: (data: any) => {
+        // Draw rounded header on new pages
+        if (data.pageNumber > 1) {
+          drawRoundedHeader(data.settings.margin.top)
+        }
       },
     })
 
@@ -493,8 +504,10 @@ export default function HomePage() {
     const splitNotes = doc.splitTextToSize(notesText, notesWidth)
     doc.text(splitNotes, margin, notesStartY + 6)
 
-    // Footer section - bottom left, stacked format
+    // Footer section - bottom of last page
     const footerX = margin
+    const currentPage = doc.getNumberOfPages()
+    doc.setPage(currentPage)
     const footerY = pageHeight - bottomMargin - 20
 
     // Company name - bold
