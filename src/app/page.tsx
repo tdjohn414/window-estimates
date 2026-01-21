@@ -248,6 +248,7 @@ export default function HomePage() {
     // Company Logo - use fixed width, calculate height from aspect ratio
     const logoWidth = 80
     let logoHeight = 20 // fallback
+    let loadedImg: HTMLImageElement | null = null
 
     try {
       const img = new Image()
@@ -259,12 +260,62 @@ export default function HomePage() {
       })
       const imgRatio = img.width / img.height
       logoHeight = logoWidth / imgRatio
+      loadedImg = img
       doc.addImage(img, 'PNG', margin, y, logoWidth, logoHeight)
     } catch (e) {
       doc.setFontSize(16)
       doc.setFont('helvetica', 'bold')
       doc.setTextColor(...primaryBlack)
       doc.text(COMPANY.name, margin, y + 10)
+    }
+
+    // Function to draw page header (logo + title + line)
+    const drawPageHeader = (startY: number) => {
+      if (loadedImg) {
+        doc.addImage(loadedImg, 'PNG', margin, startY, logoWidth, logoHeight)
+      } else {
+        doc.setFontSize(16)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(...primaryBlack)
+        doc.text(COMPANY.name, margin, startY + 10)
+      }
+
+      // Project Name Quote title
+      const projectTitle = info.projectName.toUpperCase().slice(0, 25) + ' QUOTE'
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(...blackText)
+      const titleX = pageWidth - margin
+      const titleCenterY = startY + (logoHeight / 2)
+
+      if (info.projectName.length > 18) {
+        const words = projectTitle.split(' ')
+        const quoteWord = words.pop()
+        const projectWords = words
+        const midPoint = Math.ceil(projectWords.length / 2)
+        const line1 = projectWords.slice(0, midPoint).join(' ')
+        const line2 = projectWords.slice(midPoint).join(' ') + ' ' + quoteWord
+
+        if (line1.length <= 20 && line2.length <= 20) {
+          doc.setFontSize(14)
+          doc.text(line1, titleX, titleCenterY - 2, { align: 'right' })
+          doc.text(line2, titleX, titleCenterY + 6, { align: 'right' })
+        } else {
+          const fontSize = Math.max(12, 18 - (info.projectName.length - 18) * 0.8)
+          doc.setFontSize(fontSize)
+          doc.text(projectTitle, titleX, titleCenterY + 3, { align: 'right' })
+        }
+      } else {
+        doc.setFontSize(18)
+        doc.text(projectTitle, titleX, titleCenterY + 3, { align: 'right' })
+      }
+
+      // Grey line after header
+      const lineY = startY + logoHeight + 4
+      doc.setDrawColor(200, 200, 200)
+      doc.setLineWidth(0.5)
+      doc.line(margin, lineY, pageWidth - margin, lineY)
+
+      return lineY + 8 // Return Y position after header
     }
 
     // Project Name Quote title - vertically centered with logo
@@ -448,7 +499,7 @@ export default function HomePage() {
         fillColor: [250, 250, 250],
       },
       columnStyles,
-      margin: { left: margin, right: margin, top: margin, bottom: 60 },
+      margin: { left: margin, right: margin, top: margin + logoHeight + 12, bottom: 60 },
       tableLineWidth: 0,
       tableLineColor: [255, 255, 255],
       styles: {
@@ -456,11 +507,18 @@ export default function HomePage() {
         cellWidth: 'wrap',
       },
       didDrawPage: (data: any) => {
-        // Draw rounded header on new pages
+        // On page 2+, draw full page header (logo + title + line) then table header
         if (data.pageNumber > 1) {
-          drawRoundedHeader(data.settings.margin.top)
+          // First, clear the header area with white background
+          doc.setFillColor(255, 255, 255)
+          doc.rect(0, 0, pageWidth, margin + logoHeight + 12, 'F')
+          // Then draw the page header
+          const tableStartY = drawPageHeader(margin)
+          drawRoundedHeader(tableStartY)
         }
       },
+      showHead: 'everyPage',
+      pageBreak: 'auto',
     })
 
     let finalY = (doc as any).lastAutoTable.finalY + 10
