@@ -106,6 +106,7 @@ export default function HomePage() {
   const isDragging = useRef(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const [testLineItemCount, setTestLineItemCount] = useState(3)
+  const [isResizing, setIsResizing] = useState(false)
 
   // Fill form with test data
   const fillTestData = () => {
@@ -149,8 +150,12 @@ export default function HomePage() {
   // Handle resize drag
   const handleMouseDown = useCallback(() => {
     isDragging.current = true
+    setIsResizing(true)
     document.body.style.cursor = 'col-resize'
     document.body.style.userSelect = 'none'
+    // Disable pointer events on iframe during drag to prevent it from capturing mouse
+    const iframe = document.querySelector('iframe')
+    if (iframe) iframe.style.pointerEvents = 'none'
   }, [])
 
   useEffect(() => {
@@ -164,8 +169,12 @@ export default function HomePage() {
 
     const handleMouseUp = () => {
       isDragging.current = false
+      setIsResizing(false)
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
+      // Re-enable pointer events on iframe
+      const iframe = document.querySelector('iframe')
+      if (iframe) iframe.style.pointerEvents = ''
     }
 
     document.addEventListener('mousemove', handleMouseMove)
@@ -670,7 +679,7 @@ export default function HomePage() {
 
       <div className="flex" ref={containerRef}>
         {/* Left Column - Form */}
-        <div style={{ width: showPreview ? `${formWidth}%` : '100%' }} className="pr-4 overflow-auto transition-all duration-300">
+        <div style={{ width: showPreview ? `${formWidth}%` : '100%' }} className={`pr-4 overflow-auto ${isResizing ? '' : 'transition-all duration-300'}`}>
           <div className="flex justify-between items-center mb-8">
             <h1 className="text-3xl font-bold text-black dark:text-white text-center flex-1">
               Sunny State Glass Quote Generator
@@ -1015,7 +1024,7 @@ export default function HomePage() {
         {/* Right Column - PDF Preview */}
         <div
           style={{ width: showPreview ? `${100 - formWidth}%` : '0%' }}
-          className={`pl-4 sticky top-4 h-[calc(100vh-1rem)] transition-all duration-300 ${showPreview ? 'opacity-100' : 'opacity-0 overflow-hidden'}`}
+          className={`pl-4 sticky top-4 h-[calc(100vh-1rem)] ${isResizing ? '' : 'transition-all duration-300'} ${showPreview ? 'opacity-100' : 'opacity-0 overflow-hidden'}`}
         >
           <div className="card h-full flex flex-col">
             <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden">
