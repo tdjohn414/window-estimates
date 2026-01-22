@@ -419,6 +419,53 @@ export default function HomePage() {
       return lineY + 8 // Return Y position after header
     }
 
+    // Pre-load footer image
+    let footerImg: HTMLImageElement | null = null
+    let footerImgRatio = 1
+    try {
+      const img = new Image()
+      img.crossOrigin = 'anonymous'
+      await new Promise((resolve, reject) => {
+        img.onload = resolve
+        img.onerror = reject
+        img.src = 'https://res.cloudinary.com/dqvolqe3u/image/upload/v1769114869/sunny-state-quotes/y3c1x51ojrr1ls5yfj9k.png'
+      })
+      footerImg = img
+      footerImgRatio = img.width / img.height
+    } catch (e) {
+      console.error('Failed to load footer image')
+    }
+
+    // Function to draw page footer
+    const drawFooter = () => {
+      const footerY = pageHeight - bottomMargin - 20
+      doc.setDrawColor(200, 200, 200)
+      doc.setLineWidth(0.5)
+      doc.line(margin, footerY - 5, pageWidth - margin, footerY - 5)
+      doc.setFontSize(11)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(0, 0, 0)
+      doc.text('Sunny State Glass', margin, footerY)
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(80, 80, 80)
+      doc.text(COMPANY.license, margin, footerY + 6)
+      doc.text(COMPANY.phone, margin, footerY + 12)
+      doc.setTextColor(0, 102, 204)
+      doc.textWithLink(COMPANY.website.replace('https://', '').replace('http://', ''), margin, footerY + 18, { url: COMPANY.website })
+      // Add footer image on right side, vertically centered
+      if (footerImg) {
+        const footerImgHeight = 25 // Fixed height
+        const footerImgWidth = footerImgHeight * footerImgRatio
+        const footerContentHeight = 23 // Footer spans about 23mm (from -5 to +18)
+        const imgX = pageWidth - margin - footerImgWidth
+        const imgY = footerY - 5 + (footerContentHeight - footerImgHeight) / 2
+
+        // Draw image
+        doc.addImage(footerImg, 'PNG', imgX, imgY, footerImgWidth, footerImgHeight)
+      }
+    }
+
     // Project Name Quote title - vertically centered with logo
     // Handle long project names (>18 chars): try line break first, then reduce font size
     const projectTitle = info.projectName.toUpperCase().slice(0, 25) + ' QUOTE'
@@ -673,6 +720,9 @@ export default function HomePage() {
     const splitNotes = doc.splitTextToSize(notesText, notesWidth)
     doc.text(splitNotes, margin, notesStartY + 6)
 
+    // Draw footer on page 1
+    drawFooter()
+
     // Add images page if there are any images (only for download, not preview)
     if (allImages.length > 0 && mode === 'download') {
       // Pre-load all images
@@ -696,18 +746,7 @@ export default function HomePage() {
         )
       )
 
-      // Add new page for images
-      doc.addPage()
-      let imgPageY = drawPageHeader(margin)
-      imgPageY += 5
-
-      // Title
-      doc.setFontSize(14)
-      doc.setFont('helvetica', 'bold')
-      doc.setTextColor(...blackText)
-      doc.text('REFERENCE PHOTOS', margin, imgPageY)
-      imgPageY += 10
-
+      // Image layout constants
       const imgMaxWidth = 80
       const imgMaxHeight = 60
       const imgSpacing = 10
@@ -715,6 +754,24 @@ export default function HomePage() {
       const contentWidth = pageWidth - (margin * 2)
       const imagesPerRow = 2
       const imgBlockWidth = (contentWidth - imgSpacing) / imagesPerRow
+
+      // Add new page for images
+      doc.addPage()
+      let imgPageY = drawPageHeader(margin)
+
+      // Title styled like table header
+      const titleHeight = 10
+      const titleRadius = 3
+      doc.setFillColor(...headerBlack)
+      doc.roundedRect(margin, imgPageY, contentWidth, titleHeight, titleRadius, titleRadius, 'F')
+      // Fill in bottom corners to make them square
+      doc.rect(margin, imgPageY + titleHeight - titleRadius, titleRadius, titleRadius, 'F')
+      doc.rect(margin + contentWidth - titleRadius, imgPageY + titleHeight - titleRadius, titleRadius, titleRadius, 'F')
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(255, 255, 255)
+      doc.text('REFERENCE PHOTOS', margin + 3, imgPageY + 7)
+      imgPageY += titleHeight + 8
 
       let currentX = margin
       let currentRow = 0
@@ -728,25 +785,22 @@ export default function HomePage() {
           // Check if we need a new page
           if (imgPageY + imgMaxHeight + labelHeight + 20 > pageHeight - bottomMargin - 30) {
             // Draw footer on current page before adding new one
-            const footerYImg = pageHeight - bottomMargin - 20
-            doc.setDrawColor(200, 200, 200)
-            doc.setLineWidth(0.5)
-            doc.line(margin, footerYImg - 5, pageWidth - margin, footerYImg - 5)
-            doc.setFontSize(11)
-            doc.setFont('helvetica', 'bold')
-            doc.setTextColor(0, 0, 0)
-            doc.text('Sunny State Glass', margin, footerYImg)
-            doc.setFontSize(10)
-            doc.setFont('helvetica', 'normal')
-            doc.setTextColor(80, 80, 80)
-            doc.text(COMPANY.license, margin, footerYImg + 6)
-            doc.text(COMPANY.phone, margin, footerYImg + 12)
-            doc.setTextColor(0, 102, 204)
-            doc.textWithLink(COMPANY.website.replace('https://', '').replace('http://', ''), margin, footerYImg + 18, { url: COMPANY.website })
+            drawFooter()
 
             doc.addPage()
             imgPageY = drawPageHeader(margin)
-            imgPageY += 5
+
+            // Draw title header on continuation pages too
+            doc.setFillColor(...headerBlack)
+            doc.roundedRect(margin, imgPageY, contentWidth, titleHeight, titleRadius, titleRadius, 'F')
+            doc.rect(margin, imgPageY + titleHeight - titleRadius, titleRadius, titleRadius, 'F')
+            doc.rect(margin + contentWidth - titleRadius, imgPageY + titleHeight - titleRadius, titleRadius, titleRadius, 'F')
+            doc.setFontSize(10)
+            doc.setFont('helvetica', 'bold')
+            doc.setTextColor(255, 255, 255)
+            doc.text('REFERENCE PHOTOS', margin + 3, imgPageY + 7)
+            imgPageY += titleHeight + 8
+
             currentX = margin
             currentRow = 0
           }
@@ -791,35 +845,12 @@ export default function HomePage() {
       }
     }
 
-    // Footer section - bottom of last page
-    const footerX = margin
-    const currentPage = doc.getNumberOfPages()
-    doc.setPage(currentPage)
-    const footerY = pageHeight - bottomMargin - 20
-
-    // Grey horizontal rule above footer
-    doc.setDrawColor(200, 200, 200)
-    doc.setLineWidth(0.5)
-    doc.line(margin, footerY - 5, pageWidth - margin, footerY - 5)
-
-    // Company name - bold
-    doc.setFontSize(11)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(0, 0, 0)
-    doc.text('Sunny State Glass', footerX, footerY)
-
-    // ROC
-    doc.setFontSize(10)
-    doc.setFont('helvetica', 'normal')
-    doc.setTextColor(80, 80, 80)
-    doc.text(COMPANY.license, footerX, footerY + 6)
-
-    // Phone
-    doc.text(COMPANY.phone, footerX, footerY + 12)
-
-    // Website - blue link
-    doc.setTextColor(0, 102, 204)
-    doc.textWithLink(COMPANY.website.replace('https://', '').replace('http://', ''), footerX, footerY + 18, { url: COMPANY.website })
+    // Draw footer on the last page (for image pages)
+    if (allImages.length > 0 && mode === 'download') {
+      const currentPage = doc.getNumberOfPages()
+      doc.setPage(currentPage)
+      drawFooter()
+    }
 
     if (mode === 'download') {
       const fileName = info.projectName
