@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
 
     // Upload to Cloudinary
     const result = await cloudinary.uploader.upload(base64, {
-      folder: 'estimate-logos',
+      folder: 'sunny-state-quotes',
       resource_type: 'image',
     })
 

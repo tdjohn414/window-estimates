@@ -11,6 +11,7 @@ interface LineItem {
   quantity: number
   unitPrice: number
   total: number
+  imageUrl?: string
 }
 
 // Hardcoded company information
@@ -420,6 +421,30 @@ export default function HomePage() {
 
     const filteredItems = lineItems.filter(item => item.description.trim() !== '')
     const hasAnyRoom = filteredItems.some(item => item.room.trim() !== '')
+    const hasAnyImage = filteredItems.some(item => item.imageUrl)
+
+    // Pre-load all line item images
+    const loadedImages: Map<string, HTMLImageElement> = new Map()
+    if (hasAnyImage) {
+      await Promise.all(
+        filteredItems.map(async (item) => {
+          if (item.imageUrl) {
+            try {
+              const img = new Image()
+              img.crossOrigin = 'anonymous'
+              await new Promise((resolve, reject) => {
+                img.onload = resolve
+                img.onerror = reject
+                img.src = item.imageUrl!
+              })
+              loadedImages.set(item.id, img)
+            } catch (e) {
+              console.error('Failed to load image:', item.imageUrl)
+            }
+          }
+        })
+      )
+    }
 
     // Calculate proper column widths to fit within margins
     const colWidth = pageWidth - (margin * 2)
@@ -427,47 +452,101 @@ export default function HomePage() {
     let tableHead: string[][]
     let tableData: string[][]
     let columnStyles: any
+    let imageColIndex = -1
 
     if (hasAnyRoom) {
-      const roomWidth = colWidth * 0.20
-      const descWidth = colWidth * 0.35
-      const qtyWidth = colWidth * 0.08
-      const priceWidth = colWidth * 0.18
-      const totalWidth = colWidth * 0.19
+      if (hasAnyImage) {
+        const roomWidth = colWidth * 0.15
+        const descWidth = colWidth * 0.30
+        const imageWidth = colWidth * 0.12
+        const qtyWidth = colWidth * 0.08
+        const priceWidth = colWidth * 0.17
+        const totalWidth = colWidth * 0.18
 
-      tableHead = [['ROOM', 'DESCRIPTION', 'QTY', 'PRICE', 'TOTAL']]
-      tableData = filteredItems.map(item => [
-        item.room || '',
-        item.description,
-        item.quantity.toString(),
-        '$' + formatCurrency(item.unitPrice),
-        '$' + formatCurrency(item.total)
-      ])
-      columnStyles = {
-        0: { cellWidth: roomWidth, halign: 'left' },
-        1: { cellWidth: descWidth, halign: 'left' },
-        2: { cellWidth: qtyWidth, halign: 'center' },
-        3: { cellWidth: priceWidth, halign: 'right' },
-        4: { cellWidth: totalWidth, halign: 'right', fontStyle: 'bold' },
+        tableHead = [['ROOM', 'DESCRIPTION', 'IMAGE', 'QTY', 'PRICE', 'TOTAL']]
+        tableData = filteredItems.map(item => [
+          item.room || '',
+          item.description,
+          '', // Placeholder for image
+          item.quantity.toString(),
+          '$' + formatCurrency(item.unitPrice),
+          '$' + formatCurrency(item.total)
+        ])
+        imageColIndex = 2
+        columnStyles = {
+          0: { cellWidth: roomWidth, halign: 'left' },
+          1: { cellWidth: descWidth, halign: 'left' },
+          2: { cellWidth: imageWidth, halign: 'center', minCellHeight: 20 },
+          3: { cellWidth: qtyWidth, halign: 'center' },
+          4: { cellWidth: priceWidth, halign: 'right' },
+          5: { cellWidth: totalWidth, halign: 'right', fontStyle: 'bold' },
+        }
+      } else {
+        const roomWidth = colWidth * 0.20
+        const descWidth = colWidth * 0.35
+        const qtyWidth = colWidth * 0.08
+        const priceWidth = colWidth * 0.18
+        const totalWidth = colWidth * 0.19
+
+        tableHead = [['ROOM', 'DESCRIPTION', 'QTY', 'PRICE', 'TOTAL']]
+        tableData = filteredItems.map(item => [
+          item.room || '',
+          item.description,
+          item.quantity.toString(),
+          '$' + formatCurrency(item.unitPrice),
+          '$' + formatCurrency(item.total)
+        ])
+        columnStyles = {
+          0: { cellWidth: roomWidth, halign: 'left' },
+          1: { cellWidth: descWidth, halign: 'left' },
+          2: { cellWidth: qtyWidth, halign: 'center' },
+          3: { cellWidth: priceWidth, halign: 'right' },
+          4: { cellWidth: totalWidth, halign: 'right', fontStyle: 'bold' },
+        }
       }
     } else {
-      const descWidth = colWidth * 0.50
-      const qtyWidth = colWidth * 0.12
-      const priceWidth = colWidth * 0.19
-      const totalWidth = colWidth * 0.19
+      if (hasAnyImage) {
+        const descWidth = colWidth * 0.40
+        const imageWidth = colWidth * 0.15
+        const qtyWidth = colWidth * 0.10
+        const priceWidth = colWidth * 0.17
+        const totalWidth = colWidth * 0.18
 
-      tableHead = [['DESCRIPTION', 'QTY', 'PRICE', 'TOTAL']]
-      tableData = filteredItems.map(item => [
-        item.description,
-        item.quantity.toString(),
-        '$' + formatCurrency(item.unitPrice),
-        '$' + formatCurrency(item.total)
-      ])
-      columnStyles = {
-        0: { cellWidth: descWidth, halign: 'left' },
-        1: { cellWidth: qtyWidth, halign: 'center' },
-        2: { cellWidth: priceWidth, halign: 'right' },
-        3: { cellWidth: totalWidth, halign: 'right', fontStyle: 'bold' },
+        tableHead = [['DESCRIPTION', 'IMAGE', 'QTY', 'PRICE', 'TOTAL']]
+        tableData = filteredItems.map(item => [
+          item.description,
+          '', // Placeholder for image
+          item.quantity.toString(),
+          '$' + formatCurrency(item.unitPrice),
+          '$' + formatCurrency(item.total)
+        ])
+        imageColIndex = 1
+        columnStyles = {
+          0: { cellWidth: descWidth, halign: 'left' },
+          1: { cellWidth: imageWidth, halign: 'center', minCellHeight: 20 },
+          2: { cellWidth: qtyWidth, halign: 'center' },
+          3: { cellWidth: priceWidth, halign: 'right' },
+          4: { cellWidth: totalWidth, halign: 'right', fontStyle: 'bold' },
+        }
+      } else {
+        const descWidth = colWidth * 0.50
+        const qtyWidth = colWidth * 0.12
+        const priceWidth = colWidth * 0.19
+        const totalWidth = colWidth * 0.19
+
+        tableHead = [['DESCRIPTION', 'QTY', 'PRICE', 'TOTAL']]
+        tableData = filteredItems.map(item => [
+          item.description,
+          item.quantity.toString(),
+          '$' + formatCurrency(item.unitPrice),
+          '$' + formatCurrency(item.total)
+        ])
+        columnStyles = {
+          0: { cellWidth: descWidth, halign: 'left' },
+          1: { cellWidth: qtyWidth, halign: 'center' },
+          2: { cellWidth: priceWidth, halign: 'right' },
+          3: { cellWidth: totalWidth, halign: 'right', fontStyle: 'bold' },
+        }
       }
     }
 
@@ -514,6 +593,21 @@ export default function HomePage() {
       styles: {
         overflow: 'linebreak',
         cellWidth: 'wrap',
+      },
+      didDrawCell: (data: any) => {
+        // Draw images in the image column
+        if (imageColIndex >= 0 && data.column.index === imageColIndex && data.section === 'body') {
+          const item = filteredItems[data.row.index]
+          if (item && loadedImages.has(item.id)) {
+            const img = loadedImages.get(item.id)!
+            const cellWidth = data.cell.width
+            const cellHeight = data.cell.height
+            const imgSize = Math.min(cellWidth - 4, cellHeight - 4, 16)
+            const x = data.cell.x + (cellWidth - imgSize) / 2
+            const y = data.cell.y + (cellHeight - imgSize) / 2
+            doc.addImage(img, 'JPEG', x, y, imgSize, imgSize)
+          }
+        }
       },
       didDrawPage: (data: any) => {
         // On page 2+, draw full page header (logo + title + line) then table header
@@ -831,7 +925,8 @@ export default function HomePage() {
           {/* Table Header */}
           <div className="hidden md:grid grid-cols-12 gap-2 mb-2 text-sm font-medium text-gray-600 dark:text-gray-400 px-2 bg-black text-white py-2 rounded-t">
             <div className="col-span-2">ROOM</div>
-            <div className="col-span-4">DESCRIPTION</div>
+            <div className="col-span-3">DESCRIPTION</div>
+            <div className="col-span-1 text-center">IMAGE</div>
             <div className="col-span-1 text-center">QTY</div>
             <div className="col-span-2 text-right">UNIT PRICE</div>
             <div className="col-span-2 text-right">TOTAL</div>
@@ -859,7 +954,7 @@ export default function HomePage() {
                 </div>
 
                 {/* Description */}
-                <div className="md:col-span-4">
+                <div className="md:col-span-3">
                   <label className="md:hidden text-xs text-gray-500 dark:text-gray-400">Description</label>
                   <input
                     type="text"
@@ -870,6 +965,65 @@ export default function HomePage() {
                     onChange={(e) => updateLineItem(item.id, 'description', e.target.value)}
                     onKeyDown={handleLineItemKeyDown}
                   />
+                </div>
+
+                {/* Image Upload */}
+                <div className="md:col-span-1 flex items-center justify-center">
+                  <label className="md:hidden text-xs text-gray-500 dark:text-gray-400">Image</label>
+                  <div className="relative">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      id={`image-upload-${item.id}`}
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0]
+                        if (!file) return
+
+                        const formData = new FormData()
+                        formData.append('file', file)
+
+                        try {
+                          const res = await fetch('/api/upload', {
+                            method: 'POST',
+                            body: formData,
+                          })
+                          const data = await res.json()
+                          if (data.url) {
+                            updateLineItem(item.id, 'imageUrl', data.url)
+                          }
+                        } catch (err) {
+                          console.error('Upload failed:', err)
+                        }
+                      }}
+                    />
+                    {item.imageUrl ? (
+                      <div className="relative group">
+                        <img
+                          src={item.imageUrl}
+                          alt="Line item"
+                          className="w-10 h-10 object-cover rounded cursor-pointer"
+                          onClick={() => document.getElementById(`image-upload-${item.id}`)?.click()}
+                        />
+                        <button
+                          onClick={() => updateLineItem(item.id, 'imageUrl', '')}
+                          className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => document.getElementById(`image-upload-${item.id}`)?.click()}
+                        className="w-10 h-10 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded flex items-center justify-center text-gray-400 hover:border-gray-400 hover:text-gray-500 transition-colors"
+                        title="Add image"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Quantity */}
