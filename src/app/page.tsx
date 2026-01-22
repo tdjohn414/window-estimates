@@ -76,6 +76,7 @@ function getDefaultNotes(weeks: number): string {
 }
 
 // Image uploader component for multiple images per line item
+// Uses client-side base64 encoding - no server upload needed
 function ImageUploader({
   itemId,
   imageUrls,
@@ -85,31 +86,23 @@ function ImageUploader({
   imageUrls: string[]
   onImagesChange: (urls: string[]) => void
 }) {
-  const [uploading, setUploading] = useState(false)
+  const [processing, setProcessing] = useState(false)
 
-  const handleUpload = async (file: File) => {
-    setUploading(true)
-    const formData = new FormData()
-    formData.append('file', file)
-
-    try {
-      const res = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      })
-      const data = await res.json()
-      if (data.url) {
-        onImagesChange([...imageUrls, data.url])
-      } else {
-        console.error('Upload response:', data)
-        alert('Upload failed: ' + (data.error || 'Unknown error'))
+  const handleFileSelect = (file: File) => {
+    setProcessing(true)
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const base64 = e.target?.result as string
+      if (base64) {
+        onImagesChange([...imageUrls, base64])
       }
-    } catch (err) {
-      console.error('Upload failed:', err)
-      alert('Upload failed - check console for details')
-    } finally {
-      setUploading(false)
+      setProcessing(false)
     }
+    reader.onerror = () => {
+      alert('Failed to read image file')
+      setProcessing(false)
+    }
+    reader.readAsDataURL(file)
   }
 
   const removeImage = (index: number) => {
@@ -140,11 +133,11 @@ function ImageUploader({
         id={`image-upload-${itemId}`}
         onChange={(e) => {
           const file = e.target.files?.[0]
-          if (file) handleUpload(file)
+          if (file) handleFileSelect(file)
           e.target.value = '' // Reset to allow same file upload
         }}
       />
-      {uploading ? (
+      {processing ? (
         <div className="w-8 h-8 border-2 border-blue-400 rounded flex items-center justify-center">
           <svg className="w-4 h-4 animate-spin text-blue-500" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -743,7 +736,7 @@ export default function HomePage() {
     drawFooter()
 
     // Add images page if there are any images (only for download, not preview)
-    if (allImages.length > 0 && mode === 'download') {
+    if (allImages.length > 0) {
       // Pre-load all images
       const loadedImageMap: Map<string, HTMLImageElement> = new Map()
       await Promise.all(
@@ -778,19 +771,16 @@ export default function HomePage() {
       doc.addPage()
       let imgPageY = drawPageHeader(margin)
 
-      // Title styled like table header
-      const titleHeight = 10
-      const titleRadius = 3
-      doc.setFillColor(...headerBlack)
-      doc.roundedRect(margin, imgPageY, contentWidth, titleHeight, titleRadius, titleRadius, 'F')
-      // Fill in bottom corners to make them square
-      doc.rect(margin, imgPageY + titleHeight - titleRadius, titleRadius, titleRadius, 'F')
-      doc.rect(margin + contentWidth - titleRadius, imgPageY + titleHeight - titleRadius, titleRadius, titleRadius, 'F')
-      doc.setFontSize(10)
+      // Full width title bar
+      const titleHeight = 12
+      doc.setFontSize(11)
       doc.setFont('helvetica', 'bold')
+      const titleText = 'REFERENCE PHOTOS'
+      doc.setFillColor(...headerBlack)
+      doc.rect(margin, imgPageY, contentWidth, titleHeight, 'F')
       doc.setTextColor(255, 255, 255)
-      doc.text('REFERENCE PHOTOS', margin + 3, imgPageY + 7)
-      imgPageY += titleHeight + 8
+      doc.text(titleText, pageWidth / 2, imgPageY + (titleHeight / 2) + 1.5, { align: 'center' })
+      imgPageY += titleHeight + 14
 
       let currentX = margin
       let currentRow = 0
@@ -809,16 +799,14 @@ export default function HomePage() {
             doc.addPage()
             imgPageY = drawPageHeader(margin)
 
-            // Draw title header on continuation pages too
-            doc.setFillColor(...headerBlack)
-            doc.roundedRect(margin, imgPageY, contentWidth, titleHeight, titleRadius, titleRadius, 'F')
-            doc.rect(margin, imgPageY + titleHeight - titleRadius, titleRadius, titleRadius, 'F')
-            doc.rect(margin + contentWidth - titleRadius, imgPageY + titleHeight - titleRadius, titleRadius, titleRadius, 'F')
-            doc.setFontSize(10)
+            // Draw full width title on continuation pages too
+            doc.setFontSize(11)
             doc.setFont('helvetica', 'bold')
+            doc.setFillColor(...headerBlack)
+            doc.rect(margin, imgPageY, contentWidth, titleHeight, 'F')
             doc.setTextColor(255, 255, 255)
-            doc.text('REFERENCE PHOTOS', margin + 3, imgPageY + 7)
-            imgPageY += titleHeight + 8
+            doc.text(titleText, pageWidth / 2, imgPageY + (titleHeight / 2) + 1.5, { align: 'center' })
+            imgPageY += titleHeight + 14
 
             currentX = margin
             currentRow = 0
@@ -833,18 +821,22 @@ export default function HomePage() {
             drawWidth = imgMaxHeight * imgRatio
           }
 
-          // Draw label
+          // Center image within its column block
+          const imgXOffset = (imgBlockWidth - drawWidth) / 2
+          const centeredImgX = currentX + imgXOffset
+
+          // Draw label centered above image
           doc.setFontSize(9)
           doc.setFont('helvetica', 'bold')
           doc.setTextColor(...blackText)
           const label = imageGroup.urls.length > 1
             ? `${imageGroup.label} (${i + 1}/${imageGroup.urls.length})`
             : imageGroup.label
-          doc.text(label, currentX, imgPageY, { maxWidth: imgBlockWidth - 5 })
+          doc.text(label, currentX + imgBlockWidth / 2, imgPageY, { align: 'center', maxWidth: imgBlockWidth - 5 })
 
-          // Draw image
+          // Draw image centered in column
           const imgY = imgPageY + 4
-          doc.addImage(loadedImg, 'JPEG', currentX, imgY, drawWidth, drawHeight)
+          doc.addImage(loadedImg, 'JPEG', centeredImgX, imgY, drawWidth, drawHeight)
 
           // Move to next position
           currentRow++
@@ -865,7 +857,7 @@ export default function HomePage() {
     }
 
     // Draw footer on the last page (for image pages)
-    if (allImages.length > 0 && mode === 'download') {
+    if (allImages.length > 0) {
       const currentPage = doc.getNumberOfPages()
       doc.setPage(currentPage)
       drawFooter()
