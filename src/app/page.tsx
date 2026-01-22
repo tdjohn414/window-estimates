@@ -578,6 +578,11 @@ export default function HomePage() {
     doc.setPage(currentPage)
     const footerY = pageHeight - bottomMargin - 20
 
+    // Grey horizontal rule above footer
+    doc.setDrawColor(200, 200, 200)
+    doc.setLineWidth(0.5)
+    doc.line(margin, footerY - 5, pageWidth - margin, footerY - 5)
+
     // Company name - bold
     doc.setFontSize(11)
     doc.setFont('helvetica', 'bold')
@@ -679,39 +684,41 @@ export default function HomePage() {
 
       <div className="flex" ref={containerRef}>
         {/* Left Column - Form */}
-        <div style={{ width: showPreview ? `${formWidth}%` : '100%' }} className={`pr-4 overflow-auto ${isResizing ? '' : 'transition-all duration-300'}`}>
-          <div className="flex justify-between items-center mb-8">
-            <h1 className="text-3xl font-bold text-black dark:text-white text-center flex-1">
+        <div style={{ width: showPreview ? `${formWidth}%` : '100%' }} className={`w-full md:w-auto pr-0 md:pr-4 overflow-auto ${isResizing ? '' : 'transition-all duration-300'}`}>
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-black dark:text-white text-center mb-4">
               Sunny State Glass Quote Generator
             </h1>
             {/* Test Data Button */}
-            <div className="flex flex-col items-end gap-1 bg-yellow-100 dark:bg-yellow-900/30 px-3 py-2 rounded-lg">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-yellow-800 dark:text-yellow-200">Test:</span>
-                <select
-                  value={testLineItemCount}
-                  onChange={(e) => setTestLineItemCount(parseInt(e.target.value))}
-                  className="text-sm border border-yellow-300 dark:border-yellow-700 rounded px-2 py-1 bg-white dark:bg-gray-800"
-                >
-                  {Array.from({ length: 20 }, (_, i) => i + 1).map(n => (
-                    <option key={n} value={n}>{n} items</option>
-                  ))}
-                </select>
-                <button
-                  onClick={fillTestData}
-                  className="text-sm bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded font-medium transition-colors"
-                >
-                  Fill
-                </button>
+            <div className="flex justify-center">
+              <div className="flex flex-col items-center gap-1 bg-yellow-100 dark:bg-yellow-900/30 px-3 py-2 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-yellow-800 dark:text-yellow-200">Test:</span>
+                  <select
+                    value={testLineItemCount}
+                    onChange={(e) => setTestLineItemCount(parseInt(e.target.value))}
+                    className="text-sm border border-yellow-300 dark:border-yellow-700 rounded px-2 py-1 bg-white dark:bg-gray-800"
+                  >
+                    {Array.from({ length: 20 }, (_, i) => i + 1).map(n => (
+                      <option key={n} value={n}>{n} items</option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={fillTestData}
+                    className="text-sm bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded font-medium transition-colors"
+                  >
+                    Fill
+                  </button>
+                  {hasFormData && (
+                    <button
+                      onClick={clearAll}
+                      className="text-sm bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded font-medium transition-colors"
+                    >
+                      Clear All
+                    </button>
+                  )}
+                </div>
               </div>
-              {hasFormData && (
-                <button
-                  onClick={clearAll}
-                  className="text-sm bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded font-medium transition-colors w-full"
-                >
-                  Clear All
-                </button>
-              )}
             </div>
           </div>
 
@@ -1014,17 +1021,17 @@ export default function HomePage() {
           </p>
         </div>
 
-        {/* Draggable Divider */}
+        {/* Draggable Divider - hidden on mobile */}
         <div
           onMouseDown={handleMouseDown}
-          className={`w-2 cursor-col-resize hover:bg-blue-500 bg-gray-300 dark:bg-gray-600 rounded-full flex-shrink-0 transition-all duration-300 ${showPreview ? 'opacity-100' : 'opacity-0 w-0'}`}
+          className={`hidden md:block w-2 cursor-col-resize hover:bg-blue-500 bg-gray-300 dark:bg-gray-600 rounded-full flex-shrink-0 transition-all duration-300 ${showPreview ? 'opacity-100' : 'opacity-0 w-0'}`}
           title="Drag to resize"
         />
 
-        {/* Right Column - PDF Preview */}
+        {/* Right Column - PDF Preview - hidden on mobile */}
         <div
           style={{ width: showPreview ? `${100 - formWidth}%` : '0%' }}
-          className={`pl-4 sticky top-4 h-[calc(100vh-1rem)] ${isResizing ? '' : 'transition-all duration-300'} ${showPreview ? 'opacity-100' : 'opacity-0 overflow-hidden'}`}
+          className={`hidden md:block pl-4 sticky top-4 h-[calc(100vh-1rem)] ${isResizing ? '' : 'transition-all duration-300'} ${showPreview ? 'opacity-100' : 'opacity-0 overflow-hidden'}`}
         >
           <div className="card h-full flex flex-col">
             <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden">
@@ -1043,10 +1050,10 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Preview Toggle Button - fixed position on right edge */}
+        {/* Preview Toggle Button - fixed position on right edge, hidden on mobile */}
         <button
           onClick={() => setShowPreview(!showPreview)}
-          className="fixed right-0 top-1/2 -translate-y-1/2 bg-black dark:bg-gray-700 text-white px-2 py-4 rounded-l-lg shadow-lg hover:bg-gray-800 dark:hover:bg-gray-600 transition-all duration-300 z-20"
+          className="hidden md:block fixed right-0 top-1/2 -translate-y-1/2 bg-black dark:bg-gray-700 text-white px-2 py-4 rounded-l-lg shadow-lg hover:bg-gray-800 dark:hover:bg-gray-600 transition-all duration-300 z-20"
           title={showPreview ? "Hide preview" : "Show preview"}
         >
           <svg className="w-5 h-5 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
