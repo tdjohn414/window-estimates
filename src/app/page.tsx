@@ -192,6 +192,7 @@ export default function HomePage() {
   const containerRef = useRef<HTMLDivElement>(null)
   const [testLineItemCount, setTestLineItemCount] = useState(3)
   const [isResizing, setIsResizing] = useState(false)
+  const [imageGridSize, setImageGridSize] = useState<'2x2' | '2x3' | '3x3'>('2x2') // grid layout options
 
   // Fill form with test data
   const fillTestData = () => {
@@ -317,6 +318,14 @@ export default function HomePage() {
 
   const subtotal = lineItems.reduce((sum, item) => sum + item.total, 0)
   const totalAmount = subtotal + info.laborInstallation
+  const totalImages = lineItems.reduce((sum, item) => sum + (item.imageUrls?.length || 0), 0)
+
+  // Reset from 3x3 if images drop below 7
+  useEffect(() => {
+    if (imageGridSize === '3x3' && totalImages < 7) {
+      setImageGridSize('2x3')
+    }
+  }, [totalImages, imageGridSize])
 
   const formatCurrency = (amount: number): string => {
     return amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -758,29 +767,32 @@ export default function HomePage() {
         )
       )
 
-      // Image layout constants
-      const imgMaxWidth = 80
-      const imgMaxHeight = 60
-      const imgSpacing = 10
-      const labelHeight = 8
+      // Image layout constants based on grid size
+      // 2x2: Large images (4 per page max)
+      // 2x3: Medium images sized to fit 6 on one page (2 columns × 3 rows)
+      // 3x3: Smaller images sized to fit 9 on one page (3 columns × 3 rows)
+      const imgSpacing = 12
+      const labelHeight = 7
       const contentWidth = pageWidth - (margin * 2)
-      const imagesPerRow = 2
-      const imgBlockWidth = (contentWidth - imgSpacing) / imagesPerRow
+      const imagesPerRow = imageGridSize === '3x3' ? 3 : 2
+      const imgMaxWidth = imageGridSize === '2x2' ? 85 : imageGridSize === '2x3' ? 82 : 58
+      const imgMaxHeight = imageGridSize === '2x2' ? 70 : imageGridSize === '2x3' ? 52 : 45
+      const imgBlockWidth = (contentWidth - (imgSpacing * (imagesPerRow - 1))) / imagesPerRow
 
       // Add new page for images
       doc.addPage()
       let imgPageY = drawPageHeader(margin)
 
       // Full width title bar
-      const titleHeight = 12
-      doc.setFontSize(11)
+      const titleHeight = 10
+      doc.setFontSize(10)
       doc.setFont('helvetica', 'bold')
       const titleText = 'REFERENCE PHOTOS'
       doc.setFillColor(...headerBlack)
       doc.rect(margin, imgPageY, contentWidth, titleHeight, 'F')
       doc.setTextColor(255, 255, 255)
-      doc.text(titleText, pageWidth / 2, imgPageY + (titleHeight / 2) + 1.5, { align: 'center' })
-      imgPageY += titleHeight + 14
+      doc.text(titleText, pageWidth / 2, imgPageY + (titleHeight / 2) + 1, { align: 'center' })
+      imgPageY += titleHeight + 8
 
       let currentX = margin
       let currentRow = 0
@@ -792,7 +804,8 @@ export default function HomePage() {
           if (!loadedImg) continue
 
           // Check if we need a new page
-          if (imgPageY + imgMaxHeight + labelHeight + 20 > pageHeight - bottomMargin - 30) {
+          // Check if we need a new page - footer starts at pageHeight - 28
+          if (imgPageY + imgMaxHeight + labelHeight + 5 > pageHeight - 32) {
             // Draw footer on current page before adding new one
             drawFooter()
 
@@ -800,13 +813,13 @@ export default function HomePage() {
             imgPageY = drawPageHeader(margin)
 
             // Draw full width title on continuation pages too
-            doc.setFontSize(11)
+            doc.setFontSize(10)
             doc.setFont('helvetica', 'bold')
             doc.setFillColor(...headerBlack)
             doc.rect(margin, imgPageY, contentWidth, titleHeight, 'F')
             doc.setTextColor(255, 255, 255)
-            doc.text(titleText, pageWidth / 2, imgPageY + (titleHeight / 2) + 1.5, { align: 'center' })
-            imgPageY += titleHeight + 14
+            doc.text(titleText, pageWidth / 2, imgPageY + (titleHeight / 2) + 1, { align: 'center' })
+            imgPageY += titleHeight + 8
 
             currentX = margin
             currentRow = 0
@@ -874,7 +887,7 @@ export default function HomePage() {
       const blob = doc.output('blob')
       return URL.createObjectURL(blob)
     }
-  }, [info, lineItems, subtotal, totalAmount])
+  }, [info, lineItems, subtotal, totalAmount, imageGridSize])
 
   // Update preview when form changes
   useEffect(() => {
@@ -1264,6 +1277,52 @@ export default function HomePage() {
             <pre className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{getNotesValue()}</pre>
           </div>
         </div>
+
+        {/* Image Grid Size Toggle - only show with 5+ images */}
+        {totalImages >= 5 && (
+          <div className="card mb-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Reference Photos Layout</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{totalImages} images attached</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setImageGridSize('2x2')}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                    imageGridSize === '2x2'
+                      ? 'bg-black text-white'
+                      : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                  }`}
+                >
+                  2×2
+                </button>
+                <button
+                  onClick={() => setImageGridSize('2x3')}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                    imageGridSize === '2x3'
+                      ? 'bg-black text-white'
+                      : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                  }`}
+                >
+                  2×3
+                </button>
+                {totalImages >= 7 && (
+                  <button
+                    onClick={() => setImageGridSize('3x3')}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                      imageGridSize === '3x3'
+                        ? 'bg-black text-white'
+                        : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    3×3
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Generate PDF Button */}
         <div className="flex justify-center">
