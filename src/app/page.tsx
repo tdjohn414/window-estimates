@@ -428,7 +428,7 @@ export default function HomePage() {
       await new Promise((resolve, reject) => {
         img.onload = resolve
         img.onerror = reject
-        img.src = 'https://res.cloudinary.com/dqvolqe3u/image/upload/v1769114869/sunny-state-quotes/y3c1x51ojrr1ls5yfj9k.png'
+        img.src = 'https://res.cloudinary.com/dqvolqe3u/image/upload/v1769115540/Sunny_State_Glass_Logo_l1kcyh.png'
       })
       footerImg = img
       footerImgRatio = img.width / img.height
@@ -438,30 +438,40 @@ export default function HomePage() {
 
     // Function to draw page footer
     const drawFooter = () => {
-      const footerY = pageHeight - bottomMargin - 20
-      doc.setDrawColor(200, 200, 200)
-      doc.setLineWidth(0.5)
-      doc.line(margin, footerY - 5, pageWidth - margin, footerY - 5)
+      const footerHeight = 28
+      const footerY = pageHeight - footerHeight // Extend to bottom of page
+      const footerPadding = 4
+
+      // Draw black background - full width, no rounded corners
+      doc.setFillColor(0, 0, 0)
+      doc.rect(0, footerY, pageWidth, footerHeight, 'F')
+
+      const textStartY = footerY + footerPadding + 4
+      const textX = margin
+
+      // Company name - bold white
       doc.setFontSize(11)
       doc.setFont('helvetica', 'bold')
-      doc.setTextColor(0, 0, 0)
-      doc.text('Sunny State Glass', margin, footerY)
-      doc.setFontSize(10)
+      doc.setTextColor(255, 255, 255)
+      doc.text('Sunny State Glass', textX, textStartY)
+
+      // License and phone - light gray
+      doc.setFontSize(9)
       doc.setFont('helvetica', 'normal')
-      doc.setTextColor(80, 80, 80)
-      doc.text(COMPANY.license, margin, footerY + 6)
-      doc.text(COMPANY.phone, margin, footerY + 12)
-      doc.setTextColor(0, 102, 204)
-      doc.textWithLink(COMPANY.website.replace('https://', '').replace('http://', ''), margin, footerY + 18, { url: COMPANY.website })
+      doc.setTextColor(180, 180, 180)
+      doc.text(COMPANY.license + '  |  ' + COMPANY.phone, textX, textStartY + 6)
+
+      // Website - cyan/light blue for visibility on dark
+      doc.setTextColor(100, 200, 255)
+      doc.textWithLink(COMPANY.website.replace('https://', '').replace('http://', ''), textX, textStartY + 12, { url: COMPANY.website })
+
       // Add footer image on right side, vertically centered
       if (footerImg) {
-        const footerImgHeight = 25 // Fixed height
+        const footerImgHeight = 22
         const footerImgWidth = footerImgHeight * footerImgRatio
-        const footerContentHeight = 23 // Footer spans about 23mm (from -5 to +18)
         const imgX = pageWidth - margin - footerImgWidth
-        const imgY = footerY - 5 + (footerContentHeight - footerImgHeight) / 2
+        const imgY = footerY + (footerHeight - footerImgHeight) / 2
 
-        // Draw image
         doc.addImage(footerImg, 'PNG', imgX, imgY, footerImgWidth, footerImgHeight)
       }
     }
@@ -679,6 +689,15 @@ export default function HomePage() {
     })
 
     let finalY = (doc as any).lastAutoTable.finalY + 10
+
+    // Draw footer on all pages that the table spans (except the last one, which we'll do after notes)
+    const tableEndPage = doc.getNumberOfPages()
+    for (let p = 1; p < tableEndPage; p++) {
+      doc.setPage(p)
+      drawFooter()
+    }
+    // Go back to the last page to continue drawing
+    doc.setPage(tableEndPage)
 
     // Totals on the right
     const totalsX = pageWidth - margin
