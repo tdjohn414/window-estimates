@@ -11,7 +11,7 @@ interface LineItem {
   quantity: number
   unitPrice: number
   total: number
-  imageUrl?: string
+  imageUrls?: string[]
 }
 
 // Hardcoded company information
@@ -73,6 +73,97 @@ const DEFAULT_NOTES = `- Installation to be completed within {weeks} week.
 
 function getDefaultNotes(weeks: number): string {
   return DEFAULT_NOTES.replace('{weeks}', weeks.toString())
+}
+
+// Image uploader component for multiple images per line item
+function ImageUploader({
+  itemId,
+  imageUrls,
+  onImagesChange,
+}: {
+  itemId: string
+  imageUrls: string[]
+  onImagesChange: (urls: string[]) => void
+}) {
+  const [uploading, setUploading] = useState(false)
+
+  const handleUpload = async (file: File) => {
+    setUploading(true)
+    const formData = new FormData()
+    formData.append('file', file)
+
+    try {
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      })
+      const data = await res.json()
+      if (data.url) {
+        onImagesChange([...imageUrls, data.url])
+      } else {
+        console.error('Upload response:', data)
+        alert('Upload failed: ' + (data.error || 'Unknown error'))
+      }
+    } catch (err) {
+      console.error('Upload failed:', err)
+      alert('Upload failed - check console for details')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const removeImage = (index: number) => {
+    onImagesChange(imageUrls.filter((_, i) => i !== index))
+  }
+
+  return (
+    <div className="flex items-center gap-1 flex-wrap">
+      {imageUrls.map((url, index) => (
+        <div key={url} className="relative group">
+          <img
+            src={url}
+            alt={`Image ${index + 1}`}
+            className="w-8 h-8 object-cover rounded border border-gray-300"
+          />
+          <button
+            onClick={() => removeImage(index)}
+            className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+          >
+            ×
+          </button>
+        </div>
+      ))}
+      <input
+        type="file"
+        accept="image/*"
+        className="hidden"
+        id={`image-upload-${itemId}`}
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          if (file) handleUpload(file)
+          e.target.value = '' // Reset to allow same file upload
+        }}
+      />
+      {uploading ? (
+        <div className="w-8 h-8 border-2 border-blue-400 rounded flex items-center justify-center">
+          <svg className="w-4 h-4 animate-spin text-blue-500" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+          </svg>
+        </div>
+      ) : (
+        <label
+          htmlFor={`image-upload-${itemId}`}
+          className="w-8 h-8 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded flex items-center justify-center text-gray-400 hover:border-gray-400 hover:text-gray-500 transition-colors cursor-pointer"
+          title="Add image"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+        </label>
+      )}
+    </div>
+  )
 }
 
 export default function HomePage() {
@@ -421,30 +512,15 @@ export default function HomePage() {
 
     const filteredItems = lineItems.filter(item => item.description.trim() !== '')
     const hasAnyRoom = filteredItems.some(item => item.room.trim() !== '')
-    const hasAnyImage = filteredItems.some(item => item.imageUrl)
 
-    // Pre-load all line item images
-    const loadedImages: Map<string, HTMLImageElement> = new Map()
-    if (hasAnyImage) {
-      await Promise.all(
-        filteredItems.map(async (item) => {
-          if (item.imageUrl) {
-            try {
-              const img = new Image()
-              img.crossOrigin = 'anonymous'
-              await new Promise((resolve, reject) => {
-                img.onload = resolve
-                img.onerror = reject
-                img.src = item.imageUrl!
-              })
-              loadedImages.set(item.id, img)
-            } catch (e) {
-              console.error('Failed to load image:', item.imageUrl)
-            }
-          }
-        })
-      )
-    }
+    // Collect all images with their labels for the images page
+    const allImages: { label: string; urls: string[] }[] = []
+    filteredItems.forEach(item => {
+      if (item.imageUrls && item.imageUrls.length > 0) {
+        const label = item.room ? `${item.room} - ${item.description}` : item.description
+        allImages.push({ label, urls: item.imageUrls })
+      }
+    })
 
     // Calculate proper column widths to fit within margins
     const colWidth = pageWidth - (margin * 2)
@@ -452,101 +528,47 @@ export default function HomePage() {
     let tableHead: string[][]
     let tableData: string[][]
     let columnStyles: any
-    let imageColIndex = -1
 
     if (hasAnyRoom) {
-      if (hasAnyImage) {
-        const roomWidth = colWidth * 0.15
-        const descWidth = colWidth * 0.30
-        const imageWidth = colWidth * 0.12
-        const qtyWidth = colWidth * 0.08
-        const priceWidth = colWidth * 0.17
-        const totalWidth = colWidth * 0.18
+      const roomWidth = colWidth * 0.20
+      const descWidth = colWidth * 0.35
+      const qtyWidth = colWidth * 0.08
+      const priceWidth = colWidth * 0.18
+      const totalWidth = colWidth * 0.19
 
-        tableHead = [['ROOM', 'DESCRIPTION', 'IMAGE', 'QTY', 'PRICE', 'TOTAL']]
-        tableData = filteredItems.map(item => [
-          item.room || '',
-          item.description,
-          '', // Placeholder for image
-          item.quantity.toString(),
-          '$' + formatCurrency(item.unitPrice),
-          '$' + formatCurrency(item.total)
-        ])
-        imageColIndex = 2
-        columnStyles = {
-          0: { cellWidth: roomWidth, halign: 'left' },
-          1: { cellWidth: descWidth, halign: 'left' },
-          2: { cellWidth: imageWidth, halign: 'center', minCellHeight: 20 },
-          3: { cellWidth: qtyWidth, halign: 'center' },
-          4: { cellWidth: priceWidth, halign: 'right' },
-          5: { cellWidth: totalWidth, halign: 'right', fontStyle: 'bold' },
-        }
-      } else {
-        const roomWidth = colWidth * 0.20
-        const descWidth = colWidth * 0.35
-        const qtyWidth = colWidth * 0.08
-        const priceWidth = colWidth * 0.18
-        const totalWidth = colWidth * 0.19
-
-        tableHead = [['ROOM', 'DESCRIPTION', 'QTY', 'PRICE', 'TOTAL']]
-        tableData = filteredItems.map(item => [
-          item.room || '',
-          item.description,
-          item.quantity.toString(),
-          '$' + formatCurrency(item.unitPrice),
-          '$' + formatCurrency(item.total)
-        ])
-        columnStyles = {
-          0: { cellWidth: roomWidth, halign: 'left' },
-          1: { cellWidth: descWidth, halign: 'left' },
-          2: { cellWidth: qtyWidth, halign: 'center' },
-          3: { cellWidth: priceWidth, halign: 'right' },
-          4: { cellWidth: totalWidth, halign: 'right', fontStyle: 'bold' },
-        }
+      tableHead = [['ROOM', 'DESCRIPTION', 'QTY', 'PRICE', 'TOTAL']]
+      tableData = filteredItems.map(item => [
+        item.room || '',
+        item.description,
+        item.quantity.toString(),
+        '$' + formatCurrency(item.unitPrice),
+        '$' + formatCurrency(item.total)
+      ])
+      columnStyles = {
+        0: { cellWidth: roomWidth, halign: 'left' },
+        1: { cellWidth: descWidth, halign: 'left' },
+        2: { cellWidth: qtyWidth, halign: 'center' },
+        3: { cellWidth: priceWidth, halign: 'right' },
+        4: { cellWidth: totalWidth, halign: 'right', fontStyle: 'bold' },
       }
     } else {
-      if (hasAnyImage) {
-        const descWidth = colWidth * 0.40
-        const imageWidth = colWidth * 0.15
-        const qtyWidth = colWidth * 0.10
-        const priceWidth = colWidth * 0.17
-        const totalWidth = colWidth * 0.18
+      const descWidth = colWidth * 0.50
+      const qtyWidth = colWidth * 0.12
+      const priceWidth = colWidth * 0.19
+      const totalWidth = colWidth * 0.19
 
-        tableHead = [['DESCRIPTION', 'IMAGE', 'QTY', 'PRICE', 'TOTAL']]
-        tableData = filteredItems.map(item => [
-          item.description,
-          '', // Placeholder for image
-          item.quantity.toString(),
-          '$' + formatCurrency(item.unitPrice),
-          '$' + formatCurrency(item.total)
-        ])
-        imageColIndex = 1
-        columnStyles = {
-          0: { cellWidth: descWidth, halign: 'left' },
-          1: { cellWidth: imageWidth, halign: 'center', minCellHeight: 20 },
-          2: { cellWidth: qtyWidth, halign: 'center' },
-          3: { cellWidth: priceWidth, halign: 'right' },
-          4: { cellWidth: totalWidth, halign: 'right', fontStyle: 'bold' },
-        }
-      } else {
-        const descWidth = colWidth * 0.50
-        const qtyWidth = colWidth * 0.12
-        const priceWidth = colWidth * 0.19
-        const totalWidth = colWidth * 0.19
-
-        tableHead = [['DESCRIPTION', 'QTY', 'PRICE', 'TOTAL']]
-        tableData = filteredItems.map(item => [
-          item.description,
-          item.quantity.toString(),
-          '$' + formatCurrency(item.unitPrice),
-          '$' + formatCurrency(item.total)
-        ])
-        columnStyles = {
-          0: { cellWidth: descWidth, halign: 'left' },
-          1: { cellWidth: qtyWidth, halign: 'center' },
-          2: { cellWidth: priceWidth, halign: 'right' },
-          3: { cellWidth: totalWidth, halign: 'right', fontStyle: 'bold' },
-        }
+      tableHead = [['DESCRIPTION', 'QTY', 'PRICE', 'TOTAL']]
+      tableData = filteredItems.map(item => [
+        item.description,
+        item.quantity.toString(),
+        '$' + formatCurrency(item.unitPrice),
+        '$' + formatCurrency(item.total)
+      ])
+      columnStyles = {
+        0: { cellWidth: descWidth, halign: 'left' },
+        1: { cellWidth: qtyWidth, halign: 'center' },
+        2: { cellWidth: priceWidth, halign: 'right' },
+        3: { cellWidth: totalWidth, halign: 'right', fontStyle: 'bold' },
       }
     }
 
@@ -593,21 +615,6 @@ export default function HomePage() {
       styles: {
         overflow: 'linebreak',
         cellWidth: 'wrap',
-      },
-      didDrawCell: (data: any) => {
-        // Draw images in the image column
-        if (imageColIndex >= 0 && data.column.index === imageColIndex && data.section === 'body') {
-          const item = filteredItems[data.row.index]
-          if (item && loadedImages.has(item.id)) {
-            const img = loadedImages.get(item.id)!
-            const cellWidth = data.cell.width
-            const cellHeight = data.cell.height
-            const imgSize = Math.min(cellWidth - 4, cellHeight - 4, 16)
-            const x = data.cell.x + (cellWidth - imgSize) / 2
-            const y = data.cell.y + (cellHeight - imgSize) / 2
-            doc.addImage(img, 'JPEG', x, y, imgSize, imgSize)
-          }
-        }
       },
       didDrawPage: (data: any) => {
         // On page 2+, draw full page header (logo + title + line) then table header
@@ -665,6 +672,124 @@ export default function HomePage() {
     const notesText = info.notes || getDefaultNotes(info.installationWeeks)
     const splitNotes = doc.splitTextToSize(notesText, notesWidth)
     doc.text(splitNotes, margin, notesStartY + 6)
+
+    // Add images page if there are any images (only for download, not preview)
+    if (allImages.length > 0 && mode === 'download') {
+      // Pre-load all images
+      const loadedImageMap: Map<string, HTMLImageElement> = new Map()
+      await Promise.all(
+        allImages.flatMap(item =>
+          item.urls.map(async (url) => {
+            try {
+              const img = new Image()
+              img.crossOrigin = 'anonymous'
+              await new Promise((resolve, reject) => {
+                img.onload = resolve
+                img.onerror = reject
+                img.src = url
+              })
+              loadedImageMap.set(url, img)
+            } catch (e) {
+              console.error('Failed to load image:', url)
+            }
+          })
+        )
+      )
+
+      // Add new page for images
+      doc.addPage()
+      let imgPageY = drawPageHeader(margin)
+      imgPageY += 5
+
+      // Title
+      doc.setFontSize(14)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(...blackText)
+      doc.text('REFERENCE PHOTOS', margin, imgPageY)
+      imgPageY += 10
+
+      const imgMaxWidth = 80
+      const imgMaxHeight = 60
+      const imgSpacing = 10
+      const labelHeight = 8
+      const contentWidth = pageWidth - (margin * 2)
+      const imagesPerRow = 2
+      const imgBlockWidth = (contentWidth - imgSpacing) / imagesPerRow
+
+      let currentX = margin
+      let currentRow = 0
+
+      for (const imageGroup of allImages) {
+        for (let i = 0; i < imageGroup.urls.length; i++) {
+          const url = imageGroup.urls[i]
+          const loadedImg = loadedImageMap.get(url)
+          if (!loadedImg) continue
+
+          // Check if we need a new page
+          if (imgPageY + imgMaxHeight + labelHeight + 20 > pageHeight - bottomMargin - 30) {
+            // Draw footer on current page before adding new one
+            const footerYImg = pageHeight - bottomMargin - 20
+            doc.setDrawColor(200, 200, 200)
+            doc.setLineWidth(0.5)
+            doc.line(margin, footerYImg - 5, pageWidth - margin, footerYImg - 5)
+            doc.setFontSize(11)
+            doc.setFont('helvetica', 'bold')
+            doc.setTextColor(0, 0, 0)
+            doc.text('Sunny State Glass', margin, footerYImg)
+            doc.setFontSize(10)
+            doc.setFont('helvetica', 'normal')
+            doc.setTextColor(80, 80, 80)
+            doc.text(COMPANY.license, margin, footerYImg + 6)
+            doc.text(COMPANY.phone, margin, footerYImg + 12)
+            doc.setTextColor(0, 102, 204)
+            doc.textWithLink(COMPANY.website.replace('https://', '').replace('http://', ''), margin, footerYImg + 18, { url: COMPANY.website })
+
+            doc.addPage()
+            imgPageY = drawPageHeader(margin)
+            imgPageY += 5
+            currentX = margin
+            currentRow = 0
+          }
+
+          // Calculate image dimensions maintaining aspect ratio
+          const imgRatio = loadedImg.width / loadedImg.height
+          let drawWidth = imgMaxWidth
+          let drawHeight = imgMaxWidth / imgRatio
+          if (drawHeight > imgMaxHeight) {
+            drawHeight = imgMaxHeight
+            drawWidth = imgMaxHeight * imgRatio
+          }
+
+          // Draw label
+          doc.setFontSize(9)
+          doc.setFont('helvetica', 'bold')
+          doc.setTextColor(...blackText)
+          const label = imageGroup.urls.length > 1
+            ? `${imageGroup.label} (${i + 1}/${imageGroup.urls.length})`
+            : imageGroup.label
+          doc.text(label, currentX, imgPageY, { maxWidth: imgBlockWidth - 5 })
+
+          // Draw image
+          const imgY = imgPageY + 4
+          doc.addImage(loadedImg, 'JPEG', currentX, imgY, drawWidth, drawHeight)
+
+          // Move to next position
+          currentRow++
+          if (currentRow >= imagesPerRow) {
+            currentRow = 0
+            currentX = margin
+            imgPageY += imgMaxHeight + labelHeight + imgSpacing
+          } else {
+            currentX += imgBlockWidth + imgSpacing
+          }
+        }
+      }
+
+      // Reset for next group if we ended mid-row
+      if (currentRow !== 0) {
+        imgPageY += imgMaxHeight + labelHeight + imgSpacing
+      }
+    }
 
     // Footer section - bottom of last page
     const footerX = margin
@@ -969,61 +1094,16 @@ export default function HomePage() {
 
                 {/* Image Upload */}
                 <div className="md:col-span-1 flex items-center justify-center">
-                  <label className="md:hidden text-xs text-gray-500 dark:text-gray-400">Image</label>
-                  <div className="relative">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      id={`image-upload-${item.id}`}
-                      onChange={async (e) => {
-                        const file = e.target.files?.[0]
-                        if (!file) return
-
-                        const formData = new FormData()
-                        formData.append('file', file)
-
-                        try {
-                          const res = await fetch('/api/upload', {
-                            method: 'POST',
-                            body: formData,
-                          })
-                          const data = await res.json()
-                          if (data.url) {
-                            updateLineItem(item.id, 'imageUrl', data.url)
-                          }
-                        } catch (err) {
-                          console.error('Upload failed:', err)
-                        }
-                      }}
-                    />
-                    {item.imageUrl ? (
-                      <div className="relative group">
-                        <img
-                          src={item.imageUrl}
-                          alt="Line item"
-                          className="w-10 h-10 object-cover rounded cursor-pointer"
-                          onClick={() => document.getElementById(`image-upload-${item.id}`)?.click()}
-                        />
-                        <button
-                          onClick={() => updateLineItem(item.id, 'imageUrl', '')}
-                          className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          ×
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => document.getElementById(`image-upload-${item.id}`)?.click()}
-                        className="w-10 h-10 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded flex items-center justify-center text-gray-400 hover:border-gray-400 hover:text-gray-500 transition-colors"
-                        title="Add image"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                      </button>
-                    )}
-                  </div>
+                  <label className="md:hidden text-xs text-gray-500 dark:text-gray-400">Images</label>
+                  <ImageUploader
+                    itemId={item.id}
+                    imageUrls={item.imageUrls || []}
+                    onImagesChange={(urls) => {
+                      setLineItems(items =>
+                        items.map(i => i.id === item.id ? { ...i, imageUrls: urls } : i)
+                      )
+                    }}
+                  />
                 </div>
 
                 {/* Quantity */}
