@@ -684,7 +684,7 @@ export default function HomePage() {
 
       <div className="flex" ref={containerRef}>
         {/* Left Column - Form */}
-        <div style={{ width: showPreview ? `${formWidth}%` : '100%' }} className={`w-full md:w-auto pr-0 md:pr-4 overflow-auto ${isResizing ? '' : 'transition-all duration-300'}`}>
+        <div className={`form-column w-full lg:pr-4 overflow-auto ${isResizing ? '' : 'transition-all duration-300'}`} style={showPreview ? { '--form-width': `${formWidth}%` } as React.CSSProperties : undefined}>
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-black dark:text-white text-center mb-4">
               Sunny State Glass Quote Generator
@@ -1021,17 +1021,17 @@ export default function HomePage() {
           </p>
         </div>
 
-        {/* Draggable Divider - hidden on mobile */}
+        {/* Draggable Divider - hidden on mobile/tablet */}
         <div
           onMouseDown={handleMouseDown}
-          className={`hidden md:block w-2 cursor-col-resize hover:bg-blue-500 bg-gray-300 dark:bg-gray-600 rounded-full flex-shrink-0 transition-all duration-300 ${showPreview ? 'opacity-100' : 'opacity-0 w-0'}`}
+          className={`hidden lg:block w-2 cursor-col-resize hover:bg-blue-500 bg-gray-300 dark:bg-gray-600 rounded-full flex-shrink-0 transition-all duration-300 ${showPreview ? 'opacity-100' : 'opacity-0 w-0'}`}
           title="Drag to resize"
         />
 
-        {/* Right Column - PDF Preview - hidden on mobile */}
+        {/* Right Column - PDF Preview - hidden on mobile/tablet */}
         <div
           style={{ width: showPreview ? `${100 - formWidth}%` : '0%' }}
-          className={`hidden md:block pl-4 sticky top-4 h-[calc(100vh-1rem)] ${isResizing ? '' : 'transition-all duration-300'} ${showPreview ? 'opacity-100' : 'opacity-0 overflow-hidden'}`}
+          className={`hidden lg:block pl-4 sticky top-4 h-[calc(100vh-1rem)] ${isResizing ? '' : 'transition-all duration-300'} ${showPreview ? 'opacity-100' : 'opacity-0 overflow-hidden'}`}
         >
           <div className="card h-full flex flex-col">
             <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden">
@@ -1050,10 +1050,10 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Preview Toggle Button - fixed position on right edge, hidden on mobile */}
+        {/* Preview Toggle Button - fixed position on right edge, hidden on mobile/tablet */}
         <button
           onClick={() => setShowPreview(!showPreview)}
-          className="hidden md:block fixed right-0 top-1/2 -translate-y-1/2 bg-black dark:bg-gray-700 text-white px-2 py-4 rounded-l-lg shadow-lg hover:bg-gray-800 dark:hover:bg-gray-600 transition-all duration-300 z-20"
+          className="hidden lg:block fixed right-0 top-1/2 -translate-y-1/2 bg-black dark:bg-gray-700 text-white px-2 py-4 rounded-l-lg shadow-lg hover:bg-gray-800 dark:hover:bg-gray-600 transition-all duration-300 z-20"
           title={showPreview ? "Hide preview" : "Show preview"}
         >
           <svg className="w-5 h-5 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">

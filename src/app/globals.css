@@ -66,6 +66,17 @@ body {
 .dark table tbody tr:nth-child(even) { background-color: rgb(31, 41, 55); }
 .dark table tbody tr:hover { background-color: rgb(55, 65, 81); }
 
+/* Form column - full width on mobile/tablet, variable width on desktop */
+.form-column {
+  width: 100% !important;
+}
+
+@media (min-width: 1024px) {
+  .form-column {
+    width: var(--form-width, 100%) !important;
+  }
+}
+
 /* Details/Summary accordion animation */
 details > summary {
   list-style: none;
