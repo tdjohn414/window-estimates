@@ -182,13 +182,28 @@ export function getRandomInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min
 }
 
+// Test images to attach to line items
+const testImages = [
+  'https://res.cloudinary.com/dqvolqe3u/image/upload/v1769114835/sunny-state-quotes/fepd3bqxgamye5afqogd.png',
+  'https://res.cloudinary.com/dqvolqe3u/image/upload/v1769115841/sunny-state-quotes/uiw1ussvmoihcssykk6s.png',
+  'https://res.cloudinary.com/dqvolqe3u/image/upload/v1769115844/sunny-state-quotes/ulxbwcygeednuwvmctgp.png',
+]
+
 // Generate random test data
 export function generateTestData(lineItemCount: number = 3) {
   const client = getRandomItem(testClients)
   const usedRooms = new Set<string>()
   const usedDescriptions = new Set<string>()
 
-  const lineItems = []
+  const lineItems: {
+    id: string
+    room: string
+    description: string
+    quantity: number
+    unitPrice: number
+    total: number
+    imageUrls: string[]
+  }[] = []
   for (let i = 0; i < lineItemCount; i++) {
     // Get unique room (or empty if we've used them all)
     let room = ''
@@ -215,6 +230,22 @@ export function generateTestData(lineItemCount: number = 3) {
       quantity,
       unitPrice: item.unitPrice,
       total: quantity * item.unitPrice,
+      imageUrls: [] as string[],
+    })
+  }
+
+  // Add test images to 3 unique rows if we have 3+ line items
+  if (lineItemCount >= 3) {
+    // Pick 3 random unique indices
+    const indices = new Set<number>()
+    while (indices.size < 3) {
+      indices.add(getRandomInt(0, lineItemCount - 1))
+    }
+    const indexArray = Array.from(indices)
+
+    // Assign one image to each selected row
+    indexArray.forEach((idx, i) => {
+      lineItems[idx].imageUrls = [testImages[i]]
     })
   }
 
